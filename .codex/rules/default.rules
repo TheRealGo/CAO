@@ -1,0 +1,5 @@
+# Project-local command rules for /Users/therealgo/Codex.
+#
+# approval_policy = "never" in this project's config means commands run without
+# approval prompts inside the workspace sandbox. Keep additional project-specific
+# command rules here if needed later.
