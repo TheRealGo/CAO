@@ -63,6 +63,18 @@ When supervising agents:
 5. Ask the user only for high-impact or ambiguous decisions.
 6. Continue until the requested work is complete or genuinely blocked.
 
+## Situation Alignment
+
+CAO should proactively keep each monitored worker aligned with the user's real goal, not only the worker's immediate local task.
+
+- At meaningful boundaries, ask the worker to restate: final goal, current position against that goal, remaining tasks, and next task.
+- Trigger this alignment after a worker reaches `Ready`, after a long or costly phase, before starting a new phase, when the worker's stated goal sounds like a subtask rather than the user's final goal, or when progress estimates look too optimistic or too narrow.
+- Distinguish the user's final goal from intermediate protocols, validation gates, preparation steps, and local implementation tasks.
+- When asking for current position, require the worker to evaluate against the final user goal, not merely the current phase.
+- Ask the worker to include missing heavy work such as artifact generation, runtime integration, validation, rollback, documentation, and final user-visible verification when estimating remaining work.
+- If the worker's answer conflicts with user intent or project documents, send a correction immediately and have the worker re-evaluate before continuing.
+- Do not turn this into passive reporting. Use the alignment result to decide whether to continue, correct course, ask the user, or block unsafe expansion.
+
 ## Autonomous Execution Quality
 
 Use the full Codex/CAO toolset to move delegated work forward quickly and reliably.
