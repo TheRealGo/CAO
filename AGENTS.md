@@ -82,6 +82,8 @@ When a monitored Codex worker becomes `Ready`, do not merely report that state a
 - If the next step is clear from the user's latest request, the project plan, or the worker's own handoff/summary, send the worker a concrete continuation instruction.
 - If the next step is not clear, explicitly ask the user for follow-up direction in a way that requires attention, such as `LLM-Compact is Ready. Continue with the shifted prompt gate follow-up? Yes/No`.
 - Prefer a direct Yes/No confirmation when the user needs to decide whether to continue, pause, change direction, or review results.
+- When the runtime provides an interactive choice prompt, prefer a compact choice UI such as `Yes`, `No`, and `Other` over a plain-text Yes/No line for user decisions.
+- If an interactive choice prompt is not available in the current mode, ask the question as a standalone latest message and make the expected answers explicit.
 - Keep any user decision request as the newest visible CAO message. Do not bury a pending Ready-state question under routine progress updates for other workers.
 - If other monitoring must be reported while a Ready-state question is still pending, restate the pending Yes/No question first and keep routine status secondary.
 - Keep monitoring other active workers while waiting for the user's decision.
