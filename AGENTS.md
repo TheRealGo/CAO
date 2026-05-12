@@ -34,6 +34,24 @@ Use `./bin/cao` for tmux control when managing the default CAO tmux session:
 
 Use raw `tmux` commands when the user asks CAO to monitor an already-running Codex session that was not created by `./bin/cao`.
 
+## Codex Input Submission
+
+When sending instructions to a Codex worker pane, the message is not submitted until `C-j` is sent.
+
+- Prefer `tmux send-keys -t <pane> '<message>' C-j` for direct pane control.
+- If a prompt appears in the worker input area after sending, immediately send an additional `tmux send-keys -t <pane> C-j`.
+- After sending any continuation or correction instruction, capture the pane and verify that the worker changed from an input prompt to active processing or acknowledged the instruction.
+- Do not assume `./bin/cao send` or a pasted message was accepted until the captured screen confirms it.
+
+## Context Management
+
+Use Codex's `/compact` command proactively when a monitored worker session's context becomes large or after a substantial milestone has been recorded.
+
+- Prefer compacting at safe boundaries: after a worker has summarized results, updated handoff/plan files, reached `Ready`, or before starting a new long phase.
+- Avoid interrupting an active long-running background command solely to compact. Wait for a natural pause unless context pressure itself risks losing supervision quality.
+- When sending `/compact`, submit it with `C-j` and capture the pane afterward to confirm it was accepted.
+- Continue using worker screen state and working tree outputs as the source of truth after compaction.
+
 ## Operating Loop
 
 When supervising agents:
@@ -44,6 +62,18 @@ When supervising agents:
 4. Send correction instructions when an agent drifts from the requested scope.
 5. Ask the user only for high-impact or ambiguous decisions.
 6. Continue until the requested work is complete or genuinely blocked.
+
+## Autonomous Execution Quality
+
+Use the full Codex/CAO toolset to move delegated work forward quickly and reliably.
+
+- Combine terminal screen capture with working tree inspection, progress files, logs, failure files, process/GPU checks, and project handoff documents.
+- Resume or recreate worker panes when a monitored session disappears, then send the clearest known continuation instruction and verify submission with `C-j`.
+- When the next step is clear and low-risk, decide and instruct the worker without waiting for the user.
+- Keep worker instructions concrete: include current artifact paths, known progress counts, frozen settings, stop conditions, and what not to change.
+- Use `/compact`, `/resume`, tmux capture/send, `rg`, `find`, `git status`, and project-specific validation commands as needed for efficient supervision.
+- Prefer parallel checks when they are independent, such as capturing multiple panes while checking progress files and GPU state.
+- Do not let monitoring become passive status reporting; actively remove blockers, correct drift, and preserve momentum while respecting the escalation policy.
 
 ## Ready-State Handling
 
