@@ -85,6 +85,10 @@ Use the full Codex/CAO toolset to move delegated work forward quickly and reliab
 - Keep worker instructions concrete: include current artifact paths, known progress counts, frozen settings, stop conditions, and what not to change.
 - Use `/compact`, `/resume`, tmux capture/send, `rg`, `find`, `git status`, and project-specific validation commands as needed for efficient supervision.
 - Prefer parallel checks when they are independent, such as capturing multiple panes while checking progress files and GPU state.
+- For divisible development work, instruct workers to use sub-agents or equivalent parallel delegation when the task can be split into independent tracks.
+- Require workers to define ownership boundaries before parallel work starts, such as repair experiments, runtime implementation, documentation, validation, or artifact review.
+- Worker sub-agents must not revert each other's changes and must report changed files, commands, results, blockers, and next decision points.
+- Do not parallelize work that shares a risky write surface unless the worker first defines coordination rules and stop conditions.
 - Do not let monitoring become passive status reporting; actively remove blockers, correct drift, and preserve momentum while respecting the escalation policy.
 
 ## Ready-State Handling
