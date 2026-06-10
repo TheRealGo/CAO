@@ -3,13 +3,27 @@ set -euo pipefail
 
 SESSION="${CAO_SESSION:-cao}"
 CODEX_BIN="${CODEX_BIN:-codex}"
+CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 DEFAULT_HISTORY="${CAO_HISTORY:-4000}"
+
+# Detect the supervisor's runner from environment so worker default mirrors it.
+# Override with CAO_RUNNER or `cao add --runner ...`.
+detect_runner() {
+  if [[ -n "${CLAUDECODE:-}" ]] || [[ -n "${CLAUDE_CODE_ENTRYPOINT:-}" ]]; then
+    printf 'claude\n'
+  elif [[ -n "${CODEX_HOME:-}" ]] || [[ -n "${CODEX_SANDBOX_NETWORK_DISABLED:-}" ]]; then
+    printf 'codex\n'
+  else
+    printf 'claude\n'
+  fi
+}
+CAO_RUNNER="${CAO_RUNNER:-$(detect_runner)}"
 
 usage() {
   cat <<'USAGE'
 Usage:
   cao init [--session NAME]
-  cao add DIRECTORY [--name NAME] [--resume] [--prompt TEXT] [--session NAME]
+  cao add DIRECTORY [--runner claude|codex] [--name NAME] [--resume] [--prompt TEXT] [--session NAME]
   cao list [--session NAME]
   cao capture [TARGET] [--lines N] [--session NAME]
   cao send TARGET TEXT [--enter|--no-enter] [--session NAME]
@@ -23,8 +37,14 @@ Targets are tmux targets such as:
 
 Environment:
   CAO_SESSION   tmux session name, default: cao
+  CAO_RUNNER    default worker runner (claude|codex), default: claude
+  CLAUDE_BIN    Claude Code command, default: claude
   CODEX_BIN     Codex command, default: codex
   CAO_HISTORY   capture-pane history lines, default: 4000
+
+Submit keys per runner (cao send picks the right one per window):
+  claude  C-m (Enter)
+  codex   C-j (Ctrl+Enter)
 USAGE
 }
 
@@ -69,6 +89,70 @@ target_for() {
   fi
 }
 
+# ---- Runner abstraction ----------------------------------------------------
+
+runner_validate() {
+  case "$1" in
+    claude|codex) return 0 ;;
+    *) die "unknown runner: $1 (allowed: claude, codex)" ;;
+  esac
+}
+
+runner_bin() {
+  case "$1" in
+    claude) printf '%s\n' "$CLAUDE_BIN" ;;
+    codex)  printf '%s\n' "$CODEX_BIN" ;;
+    *)      die "unknown runner: $1" ;;
+  esac
+}
+
+runner_submit_key() {
+  case "$1" in
+    claude) printf 'Enter\n' ;;
+    codex)  printf 'C-j\n' ;;
+    *)      die "unknown runner: $1" ;;
+  esac
+}
+
+# Lookup the runner recorded on a tmux window. Returns "claude" if unset
+# (legacy windows / windows created outside cao add).
+window_runner() {
+  local win_target="$1"
+  local r
+  r="$(tmux show-options -wqv -t "$win_target" @cao_runner 2>/dev/null || true)"
+  if [[ -z "$r" ]]; then
+    r="claude"
+  fi
+  printf '%s\n' "$r"
+}
+
+# Build the worker launch command line for a runner. Honors --resume and --prompt.
+runner_launch_cmd() {
+  local runner="$1" resume="$2" prompt="$3"
+  local bin
+  bin="$(runner_bin "$runner")"
+
+  case "$runner" in
+    claude)
+      local cmd="$bin --dangerously-skip-permissions"
+      if [[ "$resume" == "1" ]]; then
+        cmd="$cmd --resume"
+      fi
+      if [[ -n "$prompt" ]]; then
+        local q
+        printf -v q '%q' "$prompt"
+        cmd="$cmd $q"
+      fi
+      printf '%s\n' "$cmd"
+      ;;
+    codex)
+      printf '%s\n' "$bin"
+      ;;
+  esac
+}
+
+# ---- Argument parsing helper ----------------------------------------------
+
 parse_global_session_arg() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -84,6 +168,8 @@ parse_global_session_arg() {
   done
 }
 
+# ---- Commands --------------------------------------------------------------
+
 cmd_init() {
   parse_global_session_arg "$@"
   ensure_session
@@ -91,10 +177,15 @@ cmd_init() {
 }
 
 cmd_add() {
-  local dir="" name="" resume="0" prompt=""
+  local dir="" name="" resume="0" prompt="" runner="$CAO_RUNNER"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --runner)
+        [[ $# -ge 2 ]] || die "--runner requires claude|codex"
+        runner="$2"
+        shift 2
+        ;;
       --name)
         [[ $# -ge 2 ]] || die "--name requires a value"
         name="$2"
@@ -127,6 +218,7 @@ cmd_add() {
     esac
   done
 
+  runner_validate "$runner"
   [[ -n "$dir" ]] || die "directory is required"
   [[ -d "$dir" ]] || die "directory does not exist: $dir"
 
@@ -137,25 +229,35 @@ cmd_add() {
 
   ensure_session
   tmux new-window -t "$SESSION" -n "$name" -c "$dir"
-  tmux send-keys -t "$SESSION:$name" "$CODEX_BIN" C-m
+  tmux set-option -w -t "$SESSION:$name" @cao_runner "$runner" >/dev/null
 
-  if [[ "$resume" == "1" ]]; then
-    sleep 0.5
-    tmux send-keys -t "$SESSION:$name" "/resume" C-m
+  local launch
+  launch="$(runner_launch_cmd "$runner" "$resume" "$prompt")"
+  tmux send-keys -t "$SESSION:$name" "$launch" C-m
+
+  # Codex worker: it does not accept arguments, so deliver /resume and prompt
+  # after launch using its submit key. Claude already got everything via argv.
+  if [[ "$runner" == "codex" ]]; then
+    if [[ "$resume" == "1" ]]; then
+      sleep 0.5
+      tmux send-keys -t "$SESSION:$name" "/resume" C-j
+    fi
+    if [[ -n "$prompt" ]]; then
+      sleep 0.5
+      tmux send-keys -t "$SESSION:$name" "$prompt" C-j
+    fi
   fi
 
-  if [[ -n "$prompt" ]]; then
-    sleep 0.5
-    tmux send-keys -t "$SESSION:$name" "$prompt" C-m
-  fi
-
-  printf 'Added agent window: %s:%s cwd=%s\n' "$SESSION" "$name" "$dir"
+  printf 'Added agent window: %s:%s runner=%s cwd=%s\n' "$SESSION" "$name" "$runner" "$dir"
 }
 
 cmd_list() {
   parse_global_session_arg "$@"
   ensure_session
-  tmux list-windows -t "$SESSION" -F '#{window_index}: #{window_name} #{?window_active,(active),}'
+  printf '%-4s %-24s %-7s %s\n' '#' 'WINDOW' 'RUNNER' 'STATE'
+  tmux list-windows -t "$SESSION" \
+    -F '#{window_index}|#{window_name}|#{@cao_runner}|#{?window_active,active,}' |
+    awk -F'|' '{ printf "%-4s %-24s %-7s %s\n", $1, $2, ($3==""?"?":$3), $4 }'
 }
 
 cmd_capture() {
@@ -235,10 +337,17 @@ cmd_send() {
   [[ -n "$target" ]] || die "target is required"
   [[ -n "$text" ]] || die "text is required"
   ensure_session
+
+  local full_target win_target runner submit_key
+  full_target="$(target_for "$target")"
+  win_target="${full_target%.*}"
+  runner="$(window_runner "$win_target")"
+  submit_key="$(runner_submit_key "$runner")"
+
   if [[ "$enter" == "1" ]]; then
-    tmux send-keys -t "$(target_for "$target")" "$text" C-m
+    tmux send-keys -t "$full_target" "$text" "$submit_key"
   else
-    tmux send-keys -t "$(target_for "$target")" "$text"
+    tmux send-keys -t "$full_target" "$text"
   fi
 }
 

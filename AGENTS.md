@@ -1,5 +1,7 @@
 # CAO Project Instructions
 
+> **Note for the `ClaudeCode` branch:** the source of truth for the supervisor running here is `CLAUDE.md`. This file is retained for the Codex runner (worker windows launched with `cao add --runner codex`) and as historical reference. If you are the supervisor Claude Code instance, follow `CLAUDE.md`, not this file.
+
 This directory is the Chief Agent Officer cockpit.
 
 ## User-Facing Contract
