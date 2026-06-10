@@ -1,0 +1,91 @@
+{
+  "model": "claude-opus-4-7",
+  "env": {
+    "CAO_SESSION": "cao",
+    "CAO_RUNNER": "claude",
+    "CLAUDE_BIN": "claude",
+    "CODEX_BIN": "codex"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./bin/cao:*)",
+      "Bash(bin/cao:*)",
+      "Bash(tmux capture-pane:*)",
+      "Bash(tmux send-keys:*)",
+      "Bash(tmux list-windows:*)",
+      "Bash(tmux list-panes:*)",
+      "Bash(tmux list-sessions:*)",
+      "Bash(tmux display-message:*)",
+      "Bash(tmux show-options:*)",
+      "Bash(tmux set-option:*)",
+      "Bash(tmux has-session:*)",
+      "Bash(tmux new-window:*)",
+      "Bash(tmux select-window:*)",
+      "Bash(tmux rename-window:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git stash list:*)",
+      "Bash(git config --get:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)"
+    ],
+    "ask": [
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git tag:*)",
+      "Bash(tmux kill-session:*)",
+      "Bash(tmux kill-window:*)",
+      "Bash(tmux kill-server:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf $HOME*)",
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push --force-with-lease*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -fd*)",
+      "Bash(git branch -D*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/auto_capture_after_send.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'tmux has-session -t \"${CAO_SESSION:-cao}\" 2>/dev/null && \"$CLAUDE_PROJECT_DIR/bin/cao\" list || true'"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "$CLAUDE_PROJECT_DIR/.claude/statusline.sh"
+  }
+}

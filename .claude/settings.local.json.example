@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy to .claude/settings.local.json and edit. Personal overrides; not committed.",
+  "env": {
+    "CAO_SESSION": "cao",
+    "CAO_RUNNER": "claude"
+  }
+}

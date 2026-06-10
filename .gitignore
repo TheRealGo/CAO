@@ -1,0 +1,9 @@
+.claude/settings.local.json
+.DS_Store
+
+# pdca orchestrator runtime state (snapshots / kick timestamps / logs)
+pdca/state/
+pdca/log/
+
+# Playwright MCP snapshots/logs — may contain content from monitored projects
+.playwright-mcp/
