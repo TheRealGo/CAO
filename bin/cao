@@ -81,7 +81,7 @@ Environment:
 
 Submit keys per runner (cao send picks the right one per window):
   claude  C-m (Enter)
-  codex   C-j (Ctrl+Enter)
+  codex   M-Enter (Option+Return)
 USAGE
 }
 
@@ -431,7 +431,7 @@ runner_bin() {
 runner_submit_key() {
   case "$1" in
     claude) printf 'Enter\n' ;;
-    codex)  printf 'C-j\n' ;;
+    codex)  printf 'M-Enter\n' ;;
     *)      die "unknown runner: $1" ;;
   esac
 }
@@ -572,11 +572,11 @@ cmd_add() {
   if [[ "$runner" == "codex" ]]; then
     if [[ "$resume" == "1" ]]; then
       sleep 0.5
-      tmux send-keys -t "$SESSION:$name" "/resume" C-j
+      tmux send-keys -t "$SESSION:$name" "/resume" M-Enter
     fi
     if [[ -n "$prompt" ]]; then
       sleep 0.5
-      tmux send-keys -t "$SESSION:$name" "$prompt" C-j
+      tmux send-keys -t "$SESSION:$name" "$prompt" M-Enter
     fi
   fi
 

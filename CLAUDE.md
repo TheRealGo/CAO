@@ -72,12 +72,12 @@ Submit key depends on the runner. `bin/cao send` handles this for you:
 | Runner | Submit key | Notes |
 |---|---|---|
 | `claude` | `C-m` (Enter) | Claude Code accepts Enter; Shift+Enter inserts a newline in vim-mode but `bin/cao send` does not use Shift. |
-| `codex` | `C-j` (Ctrl+Enter) | Codex requires Ctrl+Enter to confirm; plain Enter is treated as newline. |
+| `codex` | `M-Enter` (Option+Return) | Codex requires Option+Return to confirm; plain Enter is treated as newline. |
 
 **Always send via `bin/cao send`.** It looks up the window's `@cao_runner` tmux option and picks the correct key. Existing windows not created by `bin/cao add` must first be registered with `bin/cao register TARGET --runner claude|codex`; unregister them when supervision ends. If you must use raw `tmux send-keys`, check the window's runner first:
 
 ```sh
-tmux show-options -wqv -t cao:<name> @cao_runner
+tmux show-options -wqv -t CAO:<name> @cao_runner
 ```
 
 After every send, capture the pane to confirm the input was accepted (visible at the prompt or the worker started processing).

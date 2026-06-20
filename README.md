@@ -79,7 +79,7 @@ Override per worker with `--runner`, or globally with `CAO_RUNNER`:
 export CAO_RUNNER=codex                            # force all new workers to codex
 ```
 
-`cao send` picks the correct submit key per window automatically (`C-m` / Enter for `claude`, `C-j` / Ctrl+Enter for `codex`) based on the runner recorded on that window.
+`cao send` picks the correct submit key per window automatically (`C-m` / Enter for `claude`, `M-Enter` / Option+Return for `codex`) based on the runner recorded on that window.
 
 Existing tmux windows that were not created by `cao add` must be registered with an explicit runner before `cao send` can submit input to them. Registered external windows are included in `cao list` and no-argument `cao capture`; registered names and session prefixes can be used for later capture/send target resolution. Unregister them when supervision ends.
 
