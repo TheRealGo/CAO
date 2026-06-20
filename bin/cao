@@ -5,6 +5,8 @@ SESSION="${CAO_SESSION:-cao}"
 CODEX_BIN="${CODEX_BIN:-codex}"
 CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 DEFAULT_HISTORY="${CAO_HISTORY:-4000}"
+STATE_DIR="${CAO_STATE_DIR:-.cao}"
+TARGETS_FILE="${CAO_TARGETS_FILE:-$STATE_DIR/targets.tsv}"
 
 # Detect the supervisor's runner from environment so worker default mirrors it.
 # Override with CAO_RUNNER or `cao add --runner ...`.
@@ -24,6 +26,8 @@ usage() {
 Usage:
   cao init [--session NAME]
   cao add DIRECTORY [--runner claude|codex] [--name NAME] [--resume] [--prompt TEXT] [--session NAME]
+  cao register TARGET --runner claude|codex [--session NAME]
+  cao unregister TARGET [--session NAME]
   cao list [--session NAME]
   cao capture [TARGET] [--lines N] [--session NAME]
   cao send TARGET TEXT [--enter|--no-enter] [--session NAME]
@@ -41,6 +45,7 @@ Environment:
   CLAUDE_BIN    Claude Code command, default: claude
   CODEX_BIN     Codex command, default: codex
   CAO_HISTORY   capture-pane history lines, default: 4000
+  CAO_STATE_DIR registered external target state, default: .cao
 
 Submit keys per runner (cao send picks the right one per window):
   claude  C-m (Enter)
@@ -82,11 +87,70 @@ slug() {
 
 target_for() {
   local target="$1"
-  if [[ "$target" == *:* ]]; then
+  if [[ "$target" == @* ]] || [[ "$target" == %* ]] || [[ "$target" == *:* ]]; then
     printf '%s\n' "$target"
   else
     printf '%s:%s\n' "$SESSION" "$target"
   fi
+}
+
+maybe_window_target_for() {
+  local target="$1"
+  local resolved=""
+  target="$(target_for "$target")"
+  resolved="$(tmux display-message -p -t "$target" '#{window_id}' 2>/dev/null || true)"
+  [[ -n "$resolved" ]] || return 1
+  printf '%s\n' "$resolved"
+}
+
+window_target_for() {
+  local target="$1"
+  maybe_window_target_for "$target" || die "tmux target not found: $(target_for "$target")"
+}
+
+target_display_name() {
+  local target="$1"
+  tmux display-message -p -t "$target" '#{session_name}:#{window_name}' 2>/dev/null ||
+    printf '%s\n' "$target"
+}
+
+state_init() {
+  mkdir -p "$STATE_DIR"
+  touch "$TARGETS_FILE"
+}
+
+registry_upsert() {
+  local win_target="$1" runner="$2" name="$3" original_target="$4" tmp
+  state_init
+  tmp="$(mktemp)"
+  awk -F $'\t' -v target="$win_target" '$1 != target' "$TARGETS_FILE" > "$tmp"
+  printf '%s\t%s\t%s\t%s\n' "$win_target" "$runner" "$name" "$original_target" >> "$tmp"
+  mv "$tmp" "$TARGETS_FILE"
+}
+
+registry_remove() {
+  local key="$1" tmp
+  state_init
+  tmp="$(mktemp)"
+  awk -F $'\t' -v key="$key" '$1 != key && $3 != key && $4 != key' "$TARGETS_FILE" > "$tmp"
+  mv "$tmp" "$TARGETS_FILE"
+}
+
+registry_read() {
+  [[ -f "$TARGETS_FILE" ]] || return 0
+  awk -F $'\t' 'NF >= 2 && $1 != "" { print $0 }' "$TARGETS_FILE"
+}
+
+is_default_session_window_id() {
+  local win_target="$1" session_name
+  session_name="$(tmux display-message -p -t "$win_target" '#{session_name}' 2>/dev/null || true)"
+  [[ -n "$session_name" && "$session_name" == "$SESSION" ]]
+}
+
+tmux_target_exists() {
+  local target="$1" resolved
+  resolved="$(tmux display-message -p -t "$target" '#{window_id}' 2>/dev/null || true)"
+  [[ -n "$resolved" ]]
 }
 
 # ---- Runner abstraction ----------------------------------------------------
@@ -114,15 +178,22 @@ runner_submit_key() {
   esac
 }
 
-# Lookup the runner recorded on a tmux window. Returns "claude" if unset
-# (legacy windows / windows created outside cao add).
+# Lookup the runner recorded on a tmux window.
 window_runner() {
   local win_target="$1"
-  local r
+  local r=""
   r="$(tmux show-options -wqv -t "$win_target" @cao_runner 2>/dev/null || true)"
+  printf '%s\n' "$r"
+}
+
+require_window_runner() {
+  local win_target="$1"
+  local r
+  r="$(window_runner "$win_target")"
   if [[ -z "$r" ]]; then
-    r="claude"
+    die "runner is not registered for $win_target; run: ./bin/cao register $win_target --runner claude|codex"
   fi
+  runner_validate "$r"
   printf '%s\n' "$r"
 }
 
@@ -251,13 +322,110 @@ cmd_add() {
   printf 'Added agent window: %s:%s runner=%s cwd=%s\n' "$SESSION" "$name" "$runner" "$dir"
 }
 
+cmd_register() {
+  local target="" runner=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --runner)
+        [[ $# -ge 2 ]] || die "--runner requires claude|codex"
+        runner="$2"
+        shift 2
+        ;;
+      --session)
+        [[ $# -ge 2 ]] || die "--session requires a name"
+        SESSION="$2"
+        shift 2
+        ;;
+      -*)
+        die "unknown option: $1"
+        ;;
+      *)
+        if [[ -n "$target" ]]; then
+          die "only one target can be supplied"
+        fi
+        target="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "$target" ]] || die "target is required"
+  [[ -n "$runner" ]] || die "--runner claude|codex is required"
+  runner_validate "$runner"
+  need_tmux
+
+  local win_target
+  win_target="$(window_target_for "$target")"
+  tmux display-message -p -t "$win_target" '#{window_id}' >/dev/null
+  tmux set-option -w -t "$win_target" @cao_runner "$runner" >/dev/null
+  registry_upsert "$win_target" "$runner" "$(target_display_name "$win_target")" "$(target_for "$target")"
+  printf 'Registered target: %s runner=%s\n' "$win_target" "$runner"
+}
+
+cmd_unregister() {
+  local target=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --session)
+        [[ $# -ge 2 ]] || die "--session requires a name"
+        SESSION="$2"
+        shift 2
+        ;;
+      -*)
+        die "unknown option: $1"
+        ;;
+      *)
+        if [[ -n "$target" ]]; then
+          die "only one target can be supplied"
+        fi
+        target="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "$target" ]] || die "target is required"
+  need_tmux
+
+  local key win_target=""
+  key="$(target_for "$target")"
+  win_target="$(maybe_window_target_for "$target" || true)"
+  if [[ -n "$win_target" ]]; then
+    tmux set-option -wu -t "$win_target" @cao_runner 2>/dev/null || true
+    registry_remove "$win_target"
+    registry_remove "$key"
+    printf 'Unregistered target: %s\n' "$win_target"
+  else
+    registry_remove "$key"
+    printf 'Unregistered target: %s\n' "$key"
+  fi
+}
+
 cmd_list() {
   parse_global_session_arg "$@"
   ensure_session
-  printf '%-4s %-24s %-7s %s\n' '#' 'WINDOW' 'RUNNER' 'STATE'
+  printf '%-4s %-28s %-7s %s\n' '#' 'TARGET' 'RUNNER' 'STATE'
   tmux list-windows -t "$SESSION" \
     -F '#{window_index}|#{window_name}|#{@cao_runner}|#{?window_active,active,}' |
-    awk -F'|' '{ printf "%-4s %-24s %-7s %s\n", $1, $2, ($3==""?"?":$3), $4 }'
+    awk -F'|' -v session="$SESSION" '{ printf "%-4s %-28s %-7s %s\n", $1, session ":" $2, ($3==""?"?":$3), $4 }'
+
+  registry_read |
+    while IFS=$'\t' read -r win_target runner name _original_target; do
+      [[ -n "$win_target" ]] || continue
+      if is_default_session_window_id "$win_target"; then
+        continue
+      fi
+      if tmux_target_exists "$win_target"; then
+        local current_name state
+        current_name="$(target_display_name "$win_target")"
+        state="external"
+        printf '%-4s %-28s %-7s %s\n' '*' "$current_name" "$runner" "$state"
+      else
+        printf '%-4s %-28s %-7s %s\n' '!' "${name:-$win_target}" "$runner" "missing"
+      fi
+    done
 }
 
 cmd_capture() {
@@ -294,6 +462,19 @@ cmd_capture() {
       while IFS= read -r window; do
         printf '\n===== %s:%s =====\n' "$SESSION" "$window"
         tmux capture-pane -t "$SESSION:$window" -p -S "-$lines"
+      done
+    registry_read |
+      while IFS=$'\t' read -r win_target _runner name _original_target; do
+        [[ -n "$win_target" ]] || continue
+        if is_default_session_window_id "$win_target"; then
+          continue
+        fi
+        if tmux_target_exists "$win_target"; then
+          printf '\n===== %s =====\n' "$(target_display_name "$win_target")"
+          tmux capture-pane -t "$win_target" -p -S "-$lines"
+        else
+          printf '\n===== %s =====\nmissing target: %s\n' "${name:-$win_target}" "$win_target"
+        fi
       done
   else
     tmux capture-pane -t "$(target_for "$target")" -p -S "-$lines"
@@ -340,8 +521,8 @@ cmd_send() {
 
   local full_target win_target runner submit_key
   full_target="$(target_for "$target")"
-  win_target="${full_target%.*}"
-  runner="$(window_runner "$win_target")"
+  win_target="$(window_target_for "$target")"
+  runner="$(require_window_runner "$win_target")"
   submit_key="$(runner_submit_key "$runner")"
 
   if [[ "$enter" == "1" ]]; then
@@ -377,6 +558,8 @@ main() {
   case "$cmd" in
     init) cmd_init "$@" ;;
     add) cmd_add "$@" ;;
+    register) cmd_register "$@" ;;
+    unregister) cmd_unregister "$@" ;;
     list) cmd_list "$@" ;;
     capture) cmd_capture "$@" ;;
     send) cmd_send "$@" ;;

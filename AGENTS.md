@@ -29,12 +29,14 @@ Use `./bin/cao` for tmux control when managing the default CAO tmux session:
 
 - `./bin/cao init` creates or reuses the tmux session.
 - `./bin/cao add <directory> --name <agent-name> [--resume] [--prompt <text>]` starts an agent window.
-- `./bin/cao list` lists agent windows.
-- `./bin/cao capture [agent-name]` reads visible terminal output.
+- `./bin/cao register <target> --runner claude|codex` records the runner for an existing tmux window before sending input to it.
+- `./bin/cao unregister <target>` stops tracking an existing tmux window after supervision ends.
+- `./bin/cao list` lists CAO agent windows and registered external windows.
+- `./bin/cao capture [agent-name]` reads visible terminal output; without a target it captures CAO windows and registered external windows.
 - `./bin/cao send <agent-name> <message>` sends input to an agent.
 - `./bin/cao attach` lets the user enter the same cockpit if they explicitly ask.
 
-Use raw `tmux` commands when the user asks CAO to monitor an already-running Codex session that was not created by `./bin/cao`.
+When the user asks CAO to monitor an already-running session that was not created by `./bin/cao`, first identify the tmux target and register it with an explicit runner. Do not send input through `./bin/cao send` until the runner is recorded. When supervision ends, unregister it so stale windows do not remain in sweeps. Use raw `tmux` commands only when the target cannot be represented through `./bin/cao` or while discovering the target.
 
 ## Codex Input Submission
 

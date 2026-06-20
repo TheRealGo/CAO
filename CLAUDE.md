@@ -53,8 +53,10 @@ The **tmux screen is the source of truth**. Always verify worker state by captur
 |---|---|
 | `init` | Create/reuse the tmux session (`cao` by default). |
 | `add DIR [--runner claude\|codex] [--name N] [--resume] [--prompt T]` | Open a new window in `DIR`, launch the chosen runner. Default runner is `claude`. |
-| `list` | Show windows and their runner. |
-| `capture [TARGET] [--lines N]` | Read pane history. Default 120 lines; raise for deep dives. |
+| `register TARGET --runner claude\|codex` | Record the runner for an existing tmux window before sending input to it. |
+| `unregister TARGET` | Stop tracking an existing tmux window after supervision ends. |
+| `list` | Show CAO windows, registered external windows, and their runner. |
+| `capture [TARGET] [--lines N]` | Read pane history. With no target, captures CAO windows plus registered external windows. Default 120 lines; raise for deep dives. |
 | `send TARGET TEXT [--no-enter]` | Send text to a pane. Submit key is chosen automatically per runner. |
 | `attach` | Hand the tmux session to the user (only on explicit request). |
 | `kill` | Tear down the session. Ask the user first. |
@@ -70,7 +72,7 @@ Submit key depends on the runner. `bin/cao send` handles this for you:
 | `claude` | `C-m` (Enter) | Claude Code accepts Enter; Shift+Enter inserts a newline in vim-mode but `bin/cao send` does not use Shift. |
 | `codex` | `C-j` (Ctrl+Enter) | Codex requires Ctrl+Enter to confirm; plain Enter is treated as newline. |
 
-**Always send via `bin/cao send`.** It looks up the window's `@cao_runner` tmux option and picks the correct key. If you must use raw `tmux send-keys`, check the window's runner first:
+**Always send via `bin/cao send`.** It looks up the window's `@cao_runner` tmux option and picks the correct key. Existing windows not created by `bin/cao add` must first be registered with `bin/cao register TARGET --runner claude|codex`; unregister them when supervision ends. If you must use raw `tmux send-keys`, check the window's runner first:
 
 ```sh
 tmux show-options -wqv -t cao:<name> @cao_runner

@@ -5,8 +5,8 @@ allowed-tools: Bash(./bin/cao:*), Task
 
 Delegate the actual capture-and-classify loop to the `cao-supervisor` subagent. It will:
 
-1. enumerate windows with `./bin/cao list`,
-2. capture each non-`pm` window,
+1. enumerate CAO windows and registered external windows with `./bin/cao list`,
+2. capture each non-`pm` target,
 3. classify each worker as **working / waiting / blocked / asking / finished**,
 4. return a compact triage table.
 

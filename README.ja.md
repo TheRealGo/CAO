@@ -53,10 +53,11 @@ tmux スクリーンが真実の源泉(source of truth)です。CAO は `capture
 `XXX で動いている セッションを監視して` と言われたら、CAO は:
 
 1. 該当 tmux ウィンドウを探し、
-2. 見えている画面をキャプチャ、
-3. 状態を推定(working / waiting / blocked / asking / finished)、
-4. 安全な判断は自分で応答、
-5. インパクトが大きい・曖昧な決定はあなたに確認します。
+2. 必要なら既存ウィンドウを明示 runner 付きで登録、
+3. 見えている画面をキャプチャ、
+4. 状態を推定(working / waiting / blocked / asking / finished)、
+5. 安全な判断は自分で応答、
+6. インパクトが大きい・曖昧な決定はあなたに確認します。
 
 ## Runner 自動検出
 
@@ -77,6 +78,8 @@ export CAO_RUNNER=codex                            # 以降の worker を全部 
 
 `cao send` は送信キー(`claude` には `C-m` / Enter、`codex` には `C-j` / Ctrl+Enter)をウィンドウに記録された runner から自動で選びます。
 
+`cao add` で作られていない既存 tmux ウィンドウは、`cao send` で入力を送る前に明示的な runner 付きで登録する必要があります。登録済みの外部 window は `cao list` と引数なしの `cao capture` に含まれます。監督が終わったら登録解除します。
+
 ## 内部ツール
 
 `./bin/cao` は supervisor の内部ヘルパーで、ユーザー向けではありません。
@@ -86,6 +89,8 @@ export CAO_RUNNER=codex                            # 以降の worker を全部 
 ./bin/cao add /path/to/project --name project-a                   # runner は自動検出
 ./bin/cao add /path/to/legacy  --name project-b --runner codex    # 明示的に codex worker
 ./bin/cao add /path/to/proj    --name project-c --resume --prompt "続きから"
+./bin/cao register other-session:window --runner codex            # 既存 tmux window
+./bin/cao unregister other-session:window                         # 監督対象から外す
 ./bin/cao list
 ./bin/cao capture
 ./bin/cao capture project-a --lines 180
@@ -103,6 +108,7 @@ export CAO_RUNNER=codex                            # 以降の worker を全部 
 | `CLAUDE_BIN` | `claude` | Claude Code コマンド |
 | `CODEX_BIN` | `codex` | Codex コマンド |
 | `CAO_HISTORY` | `4000` | tmux ペインの履歴行数 |
+| `CAO_STATE_DIR` | `.cao` | 登録済み外部 target のローカル実行時状態 |
 
 ## Runner ごとの設定
 

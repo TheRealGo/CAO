@@ -53,10 +53,11 @@ When you say `XXX で YYY を実装して`, CAO:
 When you say `XXX で動いている セッションを監視して`, CAO:
 
 1. finds the relevant tmux window if it already exists,
-2. captures the visible screen,
-3. infers state (working / waiting / blocked / asking / finished),
-4. responds when the decision is safe,
-5. asks the user for high-impact or ambiguous decisions.
+2. registers the existing window with an explicit runner when needed,
+3. captures the visible screen,
+4. infers state (working / waiting / blocked / asking / finished),
+5. responds when the decision is safe,
+6. asks the user for high-impact or ambiguous decisions.
 
 ## Runner Auto-Detection
 
@@ -77,6 +78,8 @@ export CAO_RUNNER=codex                            # force all new workers to co
 
 `cao send` picks the correct submit key per window automatically (`C-m` / Enter for `claude`, `C-j` / Ctrl+Enter for `codex`) based on the runner recorded on that window.
 
+Existing tmux windows that were not created by `cao add` must be registered with an explicit runner before `cao send` can submit input to them. Registered external windows are included in `cao list` and no-argument `cao capture`; unregister them when supervision ends.
+
 ## Internal Tool
 
 `./bin/cao` is the supervisor's internal helper. Not user-facing.
@@ -86,6 +89,8 @@ export CAO_RUNNER=codex                            # force all new workers to co
 ./bin/cao add /path/to/project --name project-a                   # runner auto-detected
 ./bin/cao add /path/to/legacy  --name project-b --runner codex    # explicit codex worker
 ./bin/cao add /path/to/proj    --name project-c --resume --prompt "続きから"
+./bin/cao register other-session:window --runner codex            # existing tmux window
+./bin/cao unregister other-session:window                         # stop tracking it
 ./bin/cao list
 ./bin/cao capture
 ./bin/cao capture project-a --lines 180
@@ -103,6 +108,7 @@ export CAO_RUNNER=codex                            # force all new workers to co
 | `CLAUDE_BIN` | `claude` | Claude Code command |
 | `CODEX_BIN` | `codex` | Codex command |
 | `CAO_HISTORY` | `4000` | tmux pane history limit |
+| `CAO_STATE_DIR` | `.cao` | local runtime state for registered external targets |
 
 ## Runner Configuration
 

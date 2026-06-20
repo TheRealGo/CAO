@@ -10,7 +10,7 @@ Broadcasting interrupts every worker, including ones in the middle of unrelated 
 
 Steps:
 
-1. Run `./bin/cao list` to enumerate windows.
-2. For each window whose name is **not** `pm`, run `./bin/cao send <name> '$ARGUMENTS'`.
-3. Wait 1-2 seconds, then `./bin/cao capture <name> --lines 20` for each window to confirm receipt.
+1. Run `./bin/cao list` to enumerate CAO windows and registered external windows.
+2. For each listed target whose target does not end in `:pm` and whose state is not `missing`, run `./bin/cao send <target> '$ARGUMENTS'`.
+3. Wait 1-2 seconds, then `./bin/cao capture <target> --lines 20` for each target to confirm receipt.
 4. Report which workers acknowledged and which did not respond.

@@ -5,6 +5,9 @@
 set -euo pipefail
 
 session="${CAO_SESSION:-cao}"
+project_dir="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+state_dir="${CAO_STATE_DIR:-$project_dir/.cao}"
+targets_file="${CAO_TARGETS_FILE:-$state_dir/targets.tsv}"
 
 if ! tmux has-session -t "$session" 2>/dev/null; then
   printf 'cao: %s (no session)' "$session"
@@ -27,6 +30,24 @@ while IFS='|' read -r name runner; do
     *)      other=$((other + 1)) ;;
   esac
 done <<< "$windows"
+
+if [[ -f "$targets_file" ]]; then
+  while IFS=$'\t' read -r target runner _name; do
+    [[ -z "$target" ]] && continue
+    if ! tmux display-message -p -t "$target" '#{window_id}' >/dev/null 2>&1; then
+      continue
+    fi
+    if [[ "$(tmux display-message -p -t "$target" '#{session_name}' 2>/dev/null || true)" == "$session" ]]; then
+      continue
+    fi
+    total=$((total + 1))
+    case "$runner" in
+      claude) claude=$((claude + 1)) ;;
+      codex)  codex=$((codex + 1)) ;;
+      *)      other=$((other + 1)) ;;
+    esac
+  done < "$targets_file"
+fi
 
 if [[ "$total" -eq 0 ]]; then
   printf 'cao: %s | 0 workers' "$session"
