@@ -30,8 +30,8 @@ User
 You (CAO Claude Code, in this repo)
  │
  ▼
-tmux session: cao
- ├── window: pm
+tmux session: current CAO session
+ ├── window: manager
  ├── window: project-a   (runner=claude  → claude CLI)
  ├── window: project-b   (runner=codex   → codex CLI)
  └── window: project-c   (runner=claude)
@@ -39,7 +39,7 @@ tmux session: cao
 
 The **tmux screen is the source of truth**. Always verify worker state by capturing the pane, not by remembering what you sent.
 
-The `pm` window has an automatic left dashboard pane maintained by `bin/cao`; it lists CAO worker windows and registered external targets dynamically. The user should not need to start or manage it.
+The CAO manager window has an automatic left dashboard pane maintained by `bin/cao`; it lists CAO worker windows, registered external targets, and inferred runtime state (`work`, `ready`, `block`, `idle`, `miss`) dynamically. `bin/cao` should use the current tmux session by default, not create a separate lowercase `cao` session while the user is already in the CAO cockpit. The user should not need to start or manage it.
 
 ## 4. Supervisor Role
 

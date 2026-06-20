@@ -31,8 +31,8 @@ User
  │
 CAO supervisor (Claude Code or Codex CLI, this directory)
  │
-tmux session: cao
- ├── window: pm
+tmux session: current CAO session
+ ├── window: manager
  ├── window: project-a-agent   (runner=claude)
  ├── window: project-b-agent   (runner=codex)
  └── window: project-c-agent   (runner=claude)
@@ -40,14 +40,14 @@ tmux session: cao
 
 The tmux screen is the source of truth. CAO inspects visible agent output directly with `capture-pane`, then answers, redirects, or asks the user.
 
-The `pm` window keeps a narrow left dashboard pane updated automatically, showing the currently monitored workers and registered external targets. It follows worker additions, removals, and missing targets dynamically.
+The CAO manager window keeps a narrow left dashboard pane updated automatically, showing the currently monitored workers, their inferred state (`work`, `ready`, `block`, `idle`, `miss`), and registered external targets. It follows worker additions, removals, and missing targets dynamically.
 
 ## What CAO Does Internally
 
 When you say `XXX で YYY を実装して`, CAO:
 
-1. creates or reuses the `cao` tmux session,
-2. keeps the supervisor dashboard visible in the `pm` window,
+1. creates or reuses the current CAO tmux session,
+2. keeps the supervisor dashboard visible in the CAO manager window,
 3. creates a window for `XXX`,
 4. starts the worker runner in that directory,
 5. sends the implementation request,
@@ -81,7 +81,7 @@ export CAO_RUNNER=codex                            # force all new workers to co
 
 `cao send` picks the correct submit key per window automatically (`C-m` / Enter for `claude`, `C-j` / Ctrl+Enter for `codex`) based on the runner recorded on that window.
 
-Existing tmux windows that were not created by `cao add` must be registered with an explicit runner before `cao send` can submit input to them. Registered external windows are included in `cao list` and no-argument `cao capture`; unregister them when supervision ends.
+Existing tmux windows that were not created by `cao add` must be registered with an explicit runner before `cao send` can submit input to them. Registered external windows are included in `cao list` and no-argument `cao capture`; registered names and session prefixes can be used for later capture/send target resolution. Unregister them when supervision ends.
 
 ## Internal Tool
 
@@ -106,13 +106,13 @@ Existing tmux windows that were not created by `cao add` must be registered with
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CAO_SESSION` | `cao` | tmux session name |
+| `CAO_SESSION` | current tmux session or `CAO` | tmux session name |
 | `CAO_RUNNER` | auto-detected | default worker runner (`claude` or `codex`) |
 | `CLAUDE_BIN` | `claude` | Claude Code command |
 | `CODEX_BIN` | `codex` | Codex command |
 | `CAO_HISTORY` | `4000` | tmux pane history limit |
 | `CAO_STATE_DIR` | `.cao` | local runtime state for registered external targets |
-| `CAO_DASHBOARD_WIDTH` | `34` | width of the automatic `pm` dashboard pane |
+| `CAO_DASHBOARD_WIDTH` | `34` | width of the automatic manager dashboard pane |
 
 ## Runner Configuration
 
@@ -137,7 +137,7 @@ Copy `.claude/settings.local.json.example` to `.claude/settings.local.json` for 
 
 `.codex/config.toml` ships with `approval_policy = "never"` and `sandbox_mode = "danger-full-access"`. This is intentional for the Codex-as-supervisor case: CAO has to read each worker's working tree (`git status`, `cat`, `rg`) and talk to the tmux socket — both live **outside** this repo, which the default `workspace-write` sandbox would block. Adjust it for your own threat model before running Codex CLI here.
 
-The same project config also pins the CAO runtime environment (`CAO_SESSION`, `CAO_RUNNER`, `CLAUDE_BIN`, `CODEX_BIN`) so Codex CLI starts with the expected supervisor defaults in this directory.
+The same project config also pins CAO's permissive local execution posture and runner binary names. Session and default worker runner are detected from the active supervisor environment so the cockpit follows the tmux session you are actually using.
 
 ## Policy
 

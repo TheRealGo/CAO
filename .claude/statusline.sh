@@ -4,7 +4,29 @@
 
 set -euo pipefail
 
-session="${CAO_SESSION:-cao}"
+detect_session() {
+  if [[ -n "${CAO_SESSION:-}" ]]; then
+    printf '%s\n' "$CAO_SESSION"
+    return
+  fi
+  if [[ -n "${TMUX:-}" ]]; then
+    local current
+    current="$(tmux display-message -p '#{session_name}' 2>/dev/null || true)"
+    if [[ -n "$current" ]]; then
+      printf '%s\n' "$current"
+      return
+    fi
+  fi
+  if tmux has-session -t CAO 2>/dev/null; then
+    printf 'CAO\n'
+  elif tmux has-session -t cao 2>/dev/null; then
+    printf 'cao\n'
+  else
+    printf 'CAO\n'
+  fi
+}
+
+session="$(detect_session)"
 project_dir="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 state_dir="${CAO_STATE_DIR:-$project_dir/.cao}"
 targets_file="${CAO_TARGETS_FILE:-$state_dir/targets.tsv}"
@@ -14,15 +36,16 @@ if ! tmux has-session -t "$session" 2>/dev/null; then
   exit 0
 fi
 
-windows="$(tmux list-windows -t "$session" -F '#{window_name}|#{@cao_runner}' 2>/dev/null || true)"
+manager="$(tmux show-options -qv -t "$session" @cao_manager_window 2>/dev/null || true)"
+windows="$(tmux list-windows -t "$session" -F '#{window_id}|#{window_name}|#{@cao_runner}' 2>/dev/null || true)"
 
 total=0
 claude=0
 codex=0
 other=0
-while IFS='|' read -r name runner; do
-  [[ -z "$name" ]] && continue
-  [[ "$name" == "pm" ]] && continue
+while IFS='|' read -r win_id _name runner; do
+  [[ -z "$win_id" ]] && continue
+  [[ -n "$manager" && "$win_id" == "$manager" ]] && continue
   total=$((total + 1))
   case "$runner" in
     claude) claude=$((claude + 1)) ;;

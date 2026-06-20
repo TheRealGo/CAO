@@ -5,7 +5,5 @@ sandbox_mode = "danger-full-access"
 inherit = "core"
 
 [shell_environment_policy.set]
-CAO_SESSION = "cao"
-CAO_RUNNER = "claude"
 CLAUDE_BIN = "claude"
 CODEX_BIN = "codex"
