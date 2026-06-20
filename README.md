@@ -133,6 +133,8 @@ Copy `.claude/settings.local.json.example` to `.claude/settings.local.json` for 
 
 `.codex/config.toml` ships with `approval_policy = "never"` and `sandbox_mode = "danger-full-access"`. This is intentional for the Codex-as-supervisor case: CAO has to read each worker's working tree (`git status`, `cat`, `rg`) and talk to the tmux socket — both live **outside** this repo, which the default `workspace-write` sandbox would block. Adjust it for your own threat model before running Codex CLI here.
 
+The same project config also pins the CAO runtime environment (`CAO_SESSION`, `CAO_RUNNER`, `CLAUDE_BIN`, `CODEX_BIN`) so Codex CLI starts with the expected supervisor defaults in this directory.
+
 ## Policy
 
 Prefer direct screen inspection over extra status files. Do not require worker agents to create report files unless the user explicitly asks for that.
