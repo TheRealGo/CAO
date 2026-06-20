@@ -40,15 +40,18 @@ tmux session: cao
 
 tmux スクリーンが真実の源泉(source of truth)です。CAO は `capture-pane` で見えるエージェント出力を直接観察し、応答・軌道修正・あなたへの確認を行います。
 
+`pm` window には左側の細い dashboard pane が自動で維持され、監視中の worker と登録済み外部 target の一覧を表示します。worker の追加・削除・消失は動的に反映されます。
+
 ## CAO が内部でやること
 
 `XXX で YYY を実装して` と言われたら、CAO は:
 
 1. `cao` tmux session を作成または再利用、
-2. `XXX` 用のウィンドウを作成、
-3. そのディレクトリで worker runner を起動、
-4. 実装リクエストを送信、
-5. 定期的に画面を観察して作業を前に進めます。
+2. `pm` window の supervisor dashboard を表示、
+3. `XXX` 用のウィンドウを作成、
+4. そのディレクトリで worker runner を起動、
+5. 実装リクエストを送信、
+6. 定期的に画面を観察して作業を前に進めます。
 
 `XXX で動いている セッションを監視して` と言われたら、CAO は:
 
@@ -109,6 +112,7 @@ export CAO_RUNNER=codex                            # 以降の worker を全部 
 | `CODEX_BIN` | `codex` | Codex コマンド |
 | `CAO_HISTORY` | `4000` | tmux ペインの履歴行数 |
 | `CAO_STATE_DIR` | `.cao` | 登録済み外部 target のローカル実行時状態 |
+| `CAO_DASHBOARD_WIDTH` | `34` | 自動 `pm` dashboard pane の幅 |
 
 ## Runner ごとの設定
 

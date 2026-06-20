@@ -7,6 +7,8 @@ CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 DEFAULT_HISTORY="${CAO_HISTORY:-4000}"
 STATE_DIR="${CAO_STATE_DIR:-.cao}"
 TARGETS_FILE="${CAO_TARGETS_FILE:-$STATE_DIR/targets.tsv}"
+DASHBOARD_WIDTH="${CAO_DASHBOARD_WIDTH:-34}"
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 # Detect the supervisor's runner from environment so worker default mirrors it.
 # Override with CAO_RUNNER or `cao add --runner ...`.
@@ -46,6 +48,7 @@ Environment:
   CODEX_BIN     Codex command, default: codex
   CAO_HISTORY   capture-pane history lines, default: 4000
   CAO_STATE_DIR registered external target state, default: .cao
+  CAO_DASHBOARD_WIDTH dashboard pane width, default: 34
 
 Submit keys per runner (cao send picks the right one per window):
   claude  C-m (Enter)
@@ -72,6 +75,7 @@ ensure_session() {
     tmux new-session -d -s "$SESSION" -n pm
     tmux set-option -t "$SESSION" history-limit "$DEFAULT_HISTORY" >/dev/null
   fi
+  tmux set-option -wqt "$SESSION:pm" @tmux-autolayout-state "done" 2>/dev/null || true
 }
 
 slug() {
@@ -151,6 +155,121 @@ tmux_target_exists() {
   local target="$1" resolved
   resolved="$(tmux display-message -p -t "$target" '#{window_id}' 2>/dev/null || true)"
   [[ -n "$resolved" ]]
+}
+
+dashboard_pane() {
+  tmux show-options -qv -t "$SESSION" @cao_dashboard_pane 2>/dev/null || true
+}
+
+dashboard_running() {
+  local pane
+  pane="$(dashboard_pane)"
+  [[ -n "$pane" ]] && tmux display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1
+}
+
+ensure_dashboard() {
+  need_tmux
+  tmux_has_session || return 0
+  dashboard_running && return 0
+  tmux display-message -p -t "$SESSION:pm" '#{pane_id}' >/dev/null 2>&1 || return 0
+
+  local main_pane dash_pane cmd q_session q_state_dir q_targets_file q_width q_script
+  main_pane="$(tmux display-message -p -t "$SESSION:pm" '#{pane_id}')"
+  printf -v q_session '%q' "$SESSION"
+  printf -v q_state_dir '%q' "$STATE_DIR"
+  printf -v q_targets_file '%q' "$TARGETS_FILE"
+  printf -v q_width '%q' "$DASHBOARD_WIDTH"
+  printf -v q_script '%q' "$SCRIPT_PATH"
+  cmd="CAO_SESSION=$q_session CAO_STATE_DIR=$q_state_dir CAO_TARGETS_FILE=$q_targets_file CAO_DASHBOARD_WIDTH=$q_width exec $q_script _dashboard_loop"
+  dash_pane="$(tmux split-window -h -b -l "$DASHBOARD_WIDTH" -P -F '#{pane_id}' -t "$main_pane" "$cmd" 2>/dev/null || true)"
+  if [[ -n "$dash_pane" ]]; then
+    tmux set-option -q -t "$SESSION" @cao_dashboard_pane "$dash_pane" >/dev/null
+    tmux select-pane -t "$main_pane" 2>/dev/null || true
+  fi
+}
+
+stop_dashboard() {
+  need_tmux
+  local pane
+  pane="$(dashboard_pane)"
+  if [[ -n "$pane" ]]; then
+    tmux kill-pane -t "$pane" 2>/dev/null || true
+  fi
+  tmux set-option -qu -t "$SESSION" @cao_dashboard_pane 2>/dev/null || true
+}
+
+status_rows() {
+  tmux list-windows -t "$SESSION" \
+    -F '#{window_name}|#{@cao_runner}|#{?window_active,active,}' 2>/dev/null |
+    awk -F'|' -v session="$SESSION" '$1 != "pm" { printf "%s:%s\t%s\t%s\n", session, $1, ($2==""?"?":$2), ($3==""?"idle":$3) }'
+
+  registry_read |
+    while IFS=$'\t' read -r win_target runner name _original_target; do
+      [[ -n "$win_target" ]] || continue
+      if is_default_session_window_id "$win_target"; then
+        continue
+      fi
+      if tmux_target_exists "$win_target"; then
+        printf '%s\t%s\t%s\n' "$(target_display_name "$win_target")" "$runner" "external"
+      else
+        printf '%s\t%s\t%s\n' "${name:-$win_target}" "$runner" "missing"
+      fi
+    done
+}
+
+dashboard_loop() {
+  local esc reset bold dim green yellow red cyan
+  esc="$(printf '\033')"
+  reset="${esc}[0m"
+  bold="${esc}[1m"
+  dim="${esc}[2m"
+  green="${esc}[32m"
+  yellow="${esc}[33m"
+  red="${esc}[31m"
+  cyan="${esc}[36m"
+  printf '%s' "${esc}[?25l"
+  trap 'printf "%s" "'"${esc}"'[?25h"' EXIT
+
+  local rows total active external missing name runner state color mark short_name
+  while tmux has-session -t "$SESSION" 2>/dev/null; do
+    rows="$(status_rows || true)"
+    total=0
+    active=0
+    external=0
+    missing=0
+    while IFS=$'\t' read -r _name _runner state; do
+      [[ -n "$_name" ]] || continue
+      total=$((total + 1))
+      case "$state" in
+        active) active=$((active + 1)) ;;
+        external) external=$((external + 1)) ;;
+        missing) missing=$((missing + 1)) ;;
+      esac
+    done <<< "$rows"
+
+    printf '%s%s' "${esc}[H" "${esc}[2J"
+    printf '%sCAO agents%s\n' "$bold$cyan" "$reset"
+    printf '%s%d total  active:%d ext:%d miss:%d%s\n' "$dim" "$total" "$active" "$external" "$missing" "$reset"
+    if [[ "$total" -eq 0 ]]; then
+      printf '%sno workers%s\n' "$dim" "$reset"
+    else
+      while IFS=$'\t' read -r name runner state; do
+        [[ -n "$name" ]] || continue
+        case "$state" in
+          active) color="$green"; mark="*" ;;
+          external) color="$cyan"; mark="+" ;;
+          missing) color="$red"; mark="!" ;;
+          *) color="$yellow"; mark="-" ;;
+        esac
+        short_name="$name"
+        if [[ "${#short_name}" -gt 20 ]]; then
+          short_name="...${short_name: -17}"
+        fi
+        printf '%s%s %-20s %-6s%s\n' "$color" "$mark" "$short_name" "$runner" "$reset"
+      done <<< "$rows"
+    fi
+    sleep 1
+  done
 }
 
 # ---- Runner abstraction ----------------------------------------------------
@@ -244,6 +363,7 @@ parse_global_session_arg() {
 cmd_init() {
   parse_global_session_arg "$@"
   ensure_session
+  ensure_dashboard
   printf 'CAO tmux session ready: %s\n' "$SESSION"
 }
 
@@ -299,7 +419,9 @@ cmd_add() {
   fi
 
   ensure_session
+  ensure_dashboard
   tmux new-window -t "$SESSION" -n "$name" -c "$dir"
+  tmux set-option -wqt "$SESSION:$name" @tmux-autolayout-state "done" 2>/dev/null || true
   tmux set-option -w -t "$SESSION:$name" @cao_runner "$runner" >/dev/null
 
   local launch
@@ -360,6 +482,7 @@ cmd_register() {
   tmux display-message -p -t "$win_target" '#{window_id}' >/dev/null
   tmux set-option -w -t "$win_target" @cao_runner "$runner" >/dev/null
   registry_upsert "$win_target" "$runner" "$(target_display_name "$win_target")" "$(target_for "$target")"
+  ensure_dashboard
   printf 'Registered target: %s runner=%s\n' "$win_target" "$runner"
 }
 
@@ -401,6 +524,7 @@ cmd_unregister() {
     registry_remove "$key"
     printf 'Unregistered target: %s\n' "$key"
   fi
+  ensure_dashboard
 }
 
 cmd_list() {
@@ -535,6 +659,7 @@ cmd_send() {
 cmd_attach() {
   parse_global_session_arg "$@"
   ensure_session
+  ensure_dashboard
   tmux attach -t "$SESSION"
 }
 
@@ -565,6 +690,7 @@ main() {
     send) cmd_send "$@" ;;
     attach) cmd_attach "$@" ;;
     kill) cmd_kill "$@" ;;
+    _dashboard_loop) dashboard_loop ;;
     -h|--help|help|"") usage ;;
     *) die "unknown command: $cmd" ;;
   esac

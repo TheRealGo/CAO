@@ -40,15 +40,18 @@ tmux session: cao
 
 The tmux screen is the source of truth. CAO inspects visible agent output directly with `capture-pane`, then answers, redirects, or asks the user.
 
+The `pm` window keeps a narrow left dashboard pane updated automatically, showing the currently monitored workers and registered external targets. It follows worker additions, removals, and missing targets dynamically.
+
 ## What CAO Does Internally
 
 When you say `XXX で YYY を実装して`, CAO:
 
 1. creates or reuses the `cao` tmux session,
-2. creates a window for `XXX`,
-3. starts the worker runner in that directory,
-4. sends the implementation request,
-5. periodically inspects the screen and keeps the work moving.
+2. keeps the supervisor dashboard visible in the `pm` window,
+3. creates a window for `XXX`,
+4. starts the worker runner in that directory,
+5. sends the implementation request,
+6. periodically inspects the screen and keeps the work moving.
 
 When you say `XXX で動いている セッションを監視して`, CAO:
 
@@ -109,6 +112,7 @@ Existing tmux windows that were not created by `cao add` must be registered with
 | `CODEX_BIN` | `codex` | Codex command |
 | `CAO_HISTORY` | `4000` | tmux pane history limit |
 | `CAO_STATE_DIR` | `.cao` | local runtime state for registered external targets |
+| `CAO_DASHBOARD_WIDTH` | `34` | width of the automatic `pm` dashboard pane |
 
 ## Runner Configuration
 

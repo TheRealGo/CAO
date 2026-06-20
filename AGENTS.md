@@ -36,6 +36,8 @@ Use `./bin/cao` for tmux control when managing the default CAO tmux session:
 - `./bin/cao send <agent-name> <message>` sends input to an agent.
 - `./bin/cao attach` lets the user enter the same cockpit if they explicitly ask.
 
+The `pm` window has an automatic left dashboard pane maintained by `./bin/cao`; it lists CAO worker windows and registered external targets dynamically. Do not ask the user to start or manage this pane.
+
 When the user asks CAO to monitor an already-running session that was not created by `./bin/cao`, first identify the tmux target and register it with an explicit runner. Do not send input through `./bin/cao send` until the runner is recorded. When supervision ends, unregister it so stale windows do not remain in sweeps. Use raw `tmux` commands only when the target cannot be represented through `./bin/cao` or while discovering the target.
 
 ## Codex Input Submission

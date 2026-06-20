@@ -39,6 +39,8 @@ tmux session: cao
 
 The **tmux screen is the source of truth**. Always verify worker state by capturing the pane, not by remembering what you sent.
 
+The `pm` window has an automatic left dashboard pane maintained by `bin/cao`; it lists CAO worker windows and registered external targets dynamically. The user should not need to start or manage it.
+
 ## 4. Supervisor Role
 
 - You never replace a worker. You spawn one with `bin/cao add` and communicate via `bin/cao send` / `bin/cao capture`.
