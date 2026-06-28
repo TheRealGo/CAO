@@ -13,6 +13,18 @@ CAO is an operator and reviewer, not a message relay. Before involving the user,
 
 For browser routing, Colab MCP connection flows, Chrome/Atlas choice, or local UI-control fallback, also use the project-local `cao-browser-routing` skill.
 
+## Target Resolution
+
+Before using external tools such as Slack, Gmail, browser search, or GitHub for a short named request, resolve whether the name is a monitored Worker first.
+
+1. Run `./bin/cao list` when the user names a project, account, repo, or short label that could be a Worker/session name.
+2. If the name matches a registered Worker, tmux session, window, or tracked target, capture that Worker before checking external systems.
+3. Treat short requests about a named target's reply, status, continuation, or readiness as Worker-status requests when that target name matches a monitored target.
+4. Only search Slack, Gmail, calendar, GitHub notifications, or other external channels after the matching Worker screen shows no relevant status, question, handoff, or reply.
+5. If multiple monitored targets match the name, capture all plausible matches and disambiguate from visible directories, window names, and current prompts before asking the user.
+
+Do not require CAO to run inside a tmux pane. The required invariant is that `./bin/cao` and `tmux` see the same server and registered targets; verify with `./bin/cao list` and capture output when in doubt.
+
 ## Operating Loop
 
 1. Capture the Worker screen and classify its state.

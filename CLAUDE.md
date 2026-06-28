@@ -77,6 +77,18 @@ Classify every user message before sending anything to a worker.
 
 Raw `tmux` commands are fine when supervising sessions you did not create with `bin/cao` (e.g. attaching to an existing session in another tmux instance).
 
+## 5.1 Target Resolution
+
+Before using external tools such as Slack, Gmail, browser search, or GitHub notifications for a short named request, resolve whether the name is a monitored worker first.
+
+- Run `./bin/cao list` when the user names a project, account, repo, or short label that could be a worker/session name.
+- If the name matches a registered worker, tmux session, window, or tracked target, capture that worker before checking external systems.
+- Treat short requests about a named target's reply, status, continuation, or readiness as worker-status requests when that target name matches a monitored target.
+- Only search Slack, Gmail, calendar, GitHub notifications, or other external channels after the matching worker screen shows no relevant status, question, handoff, or reply.
+- If multiple monitored targets match the name, capture all plausible matches and disambiguate from visible directories, window names, and current prompts before asking the user.
+
+CAO does not need to run inside a tmux pane. The required invariant is that `./bin/cao` and `tmux` see the same server and registered targets; verify with `./bin/cao list` and capture output when in doubt.
+
 ## 6. Input Submission
 
 Submit key depends on the runner. `bin/cao send` handles this for you:

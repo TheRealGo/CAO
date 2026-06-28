@@ -52,6 +52,18 @@ The CAO manager window has an automatic left dashboard pane maintained by `./bin
 
 When the user asks CAO to monitor an already-running session that was not created by `./bin/cao`, first identify the tmux target and register it with an explicit runner. Do not send input through `./bin/cao send` until the runner is recorded. When supervision ends, unregister it so stale windows do not remain in sweeps. Use raw `tmux` commands only when the target cannot be represented through `./bin/cao` or while discovering the target.
 
+## Target Resolution
+
+Before using external tools such as Slack, Gmail, browser search, or GitHub notifications for a short named request, resolve whether the name is a monitored Worker first.
+
+- Run `./bin/cao list` when the user names a project, account, repo, or short label that could be a Worker/session name.
+- If the name matches a registered Worker, tmux session, window, or tracked target, capture that Worker before checking external systems.
+- Treat short requests about a named target's reply, status, continuation, or readiness as Worker-status requests when that target name matches a monitored target.
+- Only search Slack, Gmail, calendar, GitHub notifications, or other external channels after the matching Worker screen shows no relevant status, question, handoff, or reply.
+- If multiple monitored targets match the name, capture all plausible matches and disambiguate from visible directories, window names, and current prompts before asking the user.
+
+CAO does not need to run inside a tmux pane. The required invariant is that `./bin/cao` and `tmux` see the same server and registered targets; verify with `./bin/cao list` and capture output when in doubt.
+
 ## Codex Input Submission
 
 When sending instructions to a Codex worker pane, the message is not submitted until Option+Return is sent (`M-Enter` in tmux).
