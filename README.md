@@ -97,10 +97,24 @@ Existing tmux windows that were not created by `cao add` must be registered with
 ./bin/cao list
 ./bin/cao capture
 ./bin/cao capture project-a --lines 180
-./bin/cao send project-a "Yes、その方針で進めてください。"
+./bin/cao send project-a "Approved: proceed with option A."
 ./bin/cao attach
 ./bin/cao kill
 ```
+
+### Local Web Dashboard
+
+For a read-only browser view of monitored workers:
+
+```sh
+./bin/cao-web --host 127.0.0.1 --port 8765
+```
+
+Then open `http://127.0.0.1:8765`.
+
+The dashboard reads tmux panes directly and refreshes automatically. It shows
+worker state, recent visible output, inferred next/current work, and likely
+user-decision lines. It intentionally does not send messages to workers.
 
 ### Environment
 
@@ -113,6 +127,14 @@ Existing tmux windows that were not created by `cao add` must be registered with
 | `CAO_HISTORY` | `4000` | tmux pane history limit |
 | `CAO_STATE_DIR` | `.cao` | local runtime state for registered external targets |
 | `CAO_DASHBOARD_WIDTH` | `34` | width of the automatic manager dashboard pane |
+| `CAO_AUTO_COMPACT` | `1` | auto-run worker `/compact` at safe boundaries |
+| `CAO_AUTO_COMPACT_THRESHOLD` | `50` | context usage percent that triggers auto-compact |
+| `CAO_AUTO_COMPACT_COOLDOWN` | `900` | seconds before retrying auto-compact for the same worker |
+| `CAO_AUTO_COMPACT_INTERVAL` | `15` | seconds between auto-compact sweeps |
+
+## Automatic Context Compaction
+
+The CAO dashboard loop automatically watches registered Claude Code and Codex workers for visible context usage such as `63% context used`. When usage is above `CAO_AUTO_COMPACT_THRESHOLD` and the worker is at a safe boundary (`ready` or `idle`), CAO sends the actual `/compact` slash command using the runner-specific submit key. It does not interrupt `working` workers solely to compact; those workers are compacted once they reach a safe boundary.
 
 ## Runner Configuration
 

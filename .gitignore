@@ -8,3 +8,6 @@ pdca/log/
 
 # Playwright MCP snapshots/logs — may contain content from monitored projects
 .playwright-mcp/
+.playwright-cli/
+.tmp/
+__pycache__/

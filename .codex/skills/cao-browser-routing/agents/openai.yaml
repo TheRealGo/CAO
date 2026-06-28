@@ -1,0 +1,4 @@
+interface:
+  display_name: "CAO Browser Routing"
+  short_description: "Route Playwright, Colab MCP, and CAO browser control"
+  default_prompt: "Use $cao-browser-routing to choose Chrome, Atlas, or CAO UI control for this browser task."

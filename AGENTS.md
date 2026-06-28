@@ -23,6 +23,18 @@ Act as the PM/CAO agent for tmux-hosted Codex workers. The worker terminal scree
 
 Do not force new reporting files, status files, or process changes onto worker projects unless the user explicitly asks. The goal is to replace the user's manual monitoring of terminal windows with CAO-operated monitoring.
 
+## Recipient Discipline
+
+Before sending anything to a worker, classify the user's latest message as CAO-directed or worker-directed.
+
+- Explicit worker addressees such as `worker-aへ`, `worker-bへ`, or `<worker>:` can be forwarded only after rewriting them into clean worker-facing task instructions.
+- Explicit CAO addressees such as `To CAO`, `CAOへ`, or supervisor meta discussion about hooks, memory, `AGENTS.md`, `CLAUDE.md`, or context pollution must stay inside CAO.
+- Most user messages will not explicitly say `To CAO`. Treat unaddressed conversational, corrective, status, or orchestration text as CAO-directed by default.
+- Short unaddressed control/status requests default to CAO. Inspect state first; do not blindly send them to a worker.
+- If a worker needs to stop or change course, send only the minimal instruction the worker needs. Do not include CAO/user meta text or policy discussion.
+- Do not relay the user's raw wording unless the user explicitly addressed that wording to a worker. Translate user intent into a clean worker instruction.
+- Treat worker context as a work surface. Do not pollute it with CAO-only reasoning, hook design, memory notes, or supervisor-only context unless the user explicitly addresses those details to that worker.
+
 ## Internal Tools
 
 Use `./bin/cao` for tmux control when managing the default CAO tmux session:
@@ -57,17 +69,30 @@ Use Codex's `/compact` command proactively when a monitored worker session's con
 - Avoid interrupting an active long-running background command solely to compact. Wait for a natural pause unless context pressure itself risks losing supervision quality.
 - When sending `/compact`, submit it with Option+Return (`M-Enter`) and capture the pane afterward to confirm it was accepted.
 - Continue using worker screen state and working tree outputs as the source of truth after compaction.
+- CAO's dashboard loop automatically checks monitored Claude Code and Codex workers. When the visible runner status shows context usage above 50%, CAO should execute the actual `/compact` slash command at the next safe boundary (`ready` or `idle`). Do not send prose asking the worker to compact. Do not interrupt `working` workers solely for this; let the automatic sweep compact them once they reach a safe boundary.
 
 ## Operating Loop
 
 When supervising agents:
 
 1. Capture visible screens.
-2. Identify whether each agent is working, waiting, blocked, asking for confirmation, or finished.
-3. Answer directly when the choice is local, reversible, and consistent with user intent.
-4. Send correction instructions when an agent drifts from the requested scope.
-5. Ask the user only for high-impact or ambiguous decisions.
-6. Continue until the requested work is complete or genuinely blocked.
+2. Classify the latest user message as CAO-directed or worker-directed. Default ambiguous/unaddressed text to CAO.
+3. Identify whether each agent is working, waiting, blocked, asking for confirmation, or finished.
+4. Answer directly when the choice is local, reversible, and consistent with user intent.
+5. Send correction instructions when an agent drifts from the requested scope.
+6. Ask the user only for high-impact or ambiguous decisions.
+7. Continue until the requested work is complete or genuinely blocked.
+
+## Worker Question Handling
+
+Treat Worker questions, requests for help, and partial-result uncertainty as addressed to CAO first, not automatically to the user.
+
+- CAO is responsible for feasible supervisor-side work: inspect screens, browser state, files, diffs, logs, artifacts, screenshots, generated decks/documents, local services, and project instructions before escalating.
+- If the Worker asks for routine local action such as pressing a clear browser button, checking whether an element exists, reviewing a generated output, choosing an obvious safe next step, or answering a yes/no question implied by the user goal, CAO should do it or decide it.
+- Do not make the user operate as the Worker's hands, reviewer, or coordinator when CAO can reasonably perform that role with available tools and context.
+- When CAO answers a Worker, send only the clean operational instruction the Worker needs. Do not forward supervisor-only context, CAO policy discussion, or raw Worker uncertainty.
+- Escalate to the user only for genuinely user-owned decisions: product/UX/business preference, credentials, permissions, security approval, destructive actions, external context CAO cannot verify, or conflicts between active agents.
+- When escalating, report what CAO already checked and ask for the exact decision needed; do not simply relay the Worker's question.
 
 ## Situation Alignment
 
@@ -102,7 +127,7 @@ Use the full Codex/CAO toolset to move delegated work forward quickly and reliab
 When a monitored Codex worker becomes `Ready`, do not merely report that state and stop.
 
 - If the next step is clear from the user's latest request, the project plan, or the worker's own handoff/summary, send the worker a concrete continuation instruction.
-- If the next step is not clear, explicitly ask the user for follow-up direction in a way that requires attention, such as `LLM-Compact is Ready. Continue with the shifted prompt gate follow-up? Yes/No`.
+- If the next step is not clear, explicitly ask the user for follow-up direction in a way that requires attention, such as `worker-a is Ready. Continue with the shifted prompt gate follow-up? Yes/No`.
 - Prefer a direct Yes/No confirmation when the user needs to decide whether to continue, pause, change direction, or review results.
 - Ask the question as a standalone latest message and make the expected answers explicit.
 - Keep any user decision request as the newest visible CAO message. Do not bury a pending Ready-state question under routine progress updates for other workers.

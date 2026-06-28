@@ -19,7 +19,7 @@ You are the CAO supervisor's rescue analyst. Given **one** target window name, i
    - other.
 4. If the working tree matters, look up the worker's directory:
    ```
-   tmux display-message -t cao:<target> -p '#{pane_current_path}'
+   tmux display-message -t CAO:<target> -p '#{pane_current_path}'
    ```
    Then read only the files needed to understand state: recent logs, the file mentioned on screen, plan/handoff docs, `git status` / `git diff` in that directory.
 5. Propose a **single concrete instruction text** the parent should send with `./bin/cao send <target> '<text>'`.

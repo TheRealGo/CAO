@@ -7,3 +7,9 @@ inherit = "core"
 [shell_environment_policy.set]
 CLAUDE_BIN = "claude"
 CODEX_BIN = "codex"
+
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = '/bin/zsh "$(git rev-parse --show-toplevel)/.codex/hooks/recipient_discipline_on_prompt.sh"'
+timeout = 5

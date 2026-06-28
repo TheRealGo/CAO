@@ -21,10 +21,6 @@ detect_session() {
       printf 'CAO\n'
       return
     fi
-    if tmux has-session -t cao 2>/dev/null; then
-      printf 'cao\n'
-      return
-    fi
   fi
 
   printf 'CAO\n'
@@ -37,6 +33,10 @@ DEFAULT_HISTORY="${CAO_HISTORY:-4000}"
 STATE_DIR="${CAO_STATE_DIR:-.cao}"
 TARGETS_FILE="${CAO_TARGETS_FILE:-$STATE_DIR/targets.tsv}"
 DASHBOARD_WIDTH="${CAO_DASHBOARD_WIDTH:-34}"
+AUTO_COMPACT="${CAO_AUTO_COMPACT:-1}"
+AUTO_COMPACT_THRESHOLD="${CAO_AUTO_COMPACT_THRESHOLD:-50}"
+AUTO_COMPACT_COOLDOWN="${CAO_AUTO_COMPACT_COOLDOWN:-900}"
+AUTO_COMPACT_INTERVAL="${CAO_AUTO_COMPACT_INTERVAL:-15}"
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 # Detect the supervisor's runner from environment so worker default mirrors it.
@@ -78,6 +78,10 @@ Environment:
   CAO_HISTORY   capture-pane history lines, default: 4000
   CAO_STATE_DIR registered external target state, default: .cao
   CAO_DASHBOARD_WIDTH dashboard pane width, default: 34
+  CAO_AUTO_COMPACT auto-run /compact at safe boundaries, default: 1
+  CAO_AUTO_COMPACT_THRESHOLD context percent threshold, default: 50
+  CAO_AUTO_COMPACT_COOLDOWN seconds before retry per worker, default: 900
+  CAO_AUTO_COMPACT_INTERVAL seconds between auto-compact sweeps, default: 15
 
 Submit keys per runner (cao send picks the right one per window):
   claude  C-m (Enter)
@@ -227,8 +231,8 @@ agent_state() {
     return
   fi
 
-  text="$(tmux capture-pane -t "$target" -p -S -80 2>/dev/null || true)"
-  if grep -Eqi "Working \\(|background terminal running|shell still running|Brewed for|Running " <<< "$text"; then
+  text="$(tmux capture-pane -J -t "$target" -p -S -120 2>/dev/null | tail -n 35 || true)"
+  if grep -Eqi "Working \\(|background terminal running|shell still running|Running |Calling " <<< "$text"; then
     printf 'working\n'
   elif grep -Eqi "usage limit|Conversation interrupted|Reviewing approval request|requires approval" <<< "$text"; then
     printf 'blocked\n'
@@ -237,6 +241,72 @@ agent_state() {
   else
     printf 'idle\n'
   fi
+}
+
+context_used_percent() {
+  local target="$1" text match pct
+  text="$(tmux capture-pane -J -t "$target" -p -S -80 2>/dev/null || true)"
+  match="$(grep -Eo '[0-9]{1,3}%[[:space:]]+context[[:space:]]+used' <<< "$text" | tail -n 1 || true)"
+  [[ -n "$match" ]] || return 1
+  pct="${match%%\%*}"
+  [[ "$pct" =~ ^[0-9]+$ ]] || return 1
+  if (( pct > 100 )); then
+    pct=100
+  fi
+  printf '%s\n' "$pct"
+}
+
+pane_is_compacting() {
+  local target="$1" text
+  text="$(tmux capture-pane -J -t "$target" -p -S -40 2>/dev/null || true)"
+  grep -Eqi 'Compacting conversation' <<< "$text"
+}
+
+auto_compact_window() {
+  local win_target="$1" runner="$2" state="$3"
+  [[ "$AUTO_COMPACT" != "0" ]] || return 0
+  [[ "$runner" == "claude" || "$runner" == "codex" ]] || return 0
+  [[ "$state" == "ready" || "$state" == "idle" ]] || return 0
+  tmux_target_exists "$win_target" || return 0
+  pane_is_compacting "$win_target" && return 0
+
+  local pct last_at now submit_key
+  pct="$(context_used_percent "$win_target" || true)"
+  [[ -n "$pct" ]] || return 0
+  (( pct > AUTO_COMPACT_THRESHOLD )) || return 0
+
+  now="$(date +%s)"
+  last_at="$(tmux show-options -wqv -t "$win_target" @cao_auto_compact_at 2>/dev/null || true)"
+  if [[ "$last_at" =~ ^[0-9]+$ ]] && (( now - last_at < AUTO_COMPACT_COOLDOWN )); then
+    return 0
+  fi
+
+  submit_key="$(runner_submit_key "$runner")"
+  tmux set-option -wq -t "$win_target" @cao_auto_compact_at "$now" >/dev/null || true
+  tmux set-option -wq -t "$win_target" @cao_auto_compact_pct "$pct" >/dev/null || true
+  tmux send-keys -t "$win_target" "/compact" "$submit_key"
+}
+
+auto_compact_sweep() {
+  [[ "$AUTO_COMPACT" != "0" ]] || return 0
+  tmux_has_session || return 0
+
+  tmux list-windows -t "$SESSION" \
+    -F '#{window_id}|#{@cao_runner}' 2>/dev/null |
+    while IFS='|' read -r win_id runner; do
+      [[ -n "$win_id" ]] || continue
+      is_manager_window_id "$win_id" && continue
+      [[ -n "$runner" ]] || continue
+      auto_compact_window "$win_id" "$runner" "$(agent_state "$win_id")"
+    done
+
+  registry_read |
+    while IFS=$'\t' read -r win_target runner _name _original_target; do
+      [[ -n "$win_target" ]] || continue
+      is_default_session_window_id "$win_target" && continue
+      tmux_target_exists "$win_target" || continue
+      auto_compact_window "$win_target" "$runner" "$(agent_state "$win_target")"
+    done
 }
 
 dashboard_pane() {
@@ -363,8 +433,15 @@ dashboard_loop() {
   printf '%s' "${esc}[?25l"
   trap 'printf "%s" "'"${esc}"'[?25h"' EXIT
 
-  local rows total working ready blocked idle missing name runner state color mark short_name state_label
+  local rows total working ready blocked idle missing name runner state color mark short_name state_label now last_compact_sweep
+  last_compact_sweep=0
   while tmux has-session -t "$SESSION" 2>/dev/null; do
+    now="$(date +%s)"
+    if (( now - last_compact_sweep >= AUTO_COMPACT_INTERVAL )); then
+      auto_compact_sweep >/dev/null 2>&1 || true
+      last_compact_sweep="$now"
+    fi
+
     rows="$(status_rows || true)"
     total=0
     working=0
@@ -559,7 +636,7 @@ cmd_add() {
 
   ensure_session
   ensure_dashboard
-  tmux new-window -t "$SESSION" -n "$name" -c "$dir"
+  tmux new-window -d -t "$SESSION" -n "$name" -c "$dir"
   tmux set-option -wqt "$SESSION:$name" @tmux-autolayout-state "done" 2>/dev/null || true
   tmux set-option -w -t "$SESSION:$name" @cao_runner "$runner" >/dev/null
 
@@ -668,19 +745,21 @@ cmd_unregister() {
 
 cmd_list() {
   parse_global_session_arg "$@"
-  ensure_session
-  local manager
+  need_tmux
+  local manager=""
   manager="$(manager_window_id || true)"
   printf '%-4s %-28s %-7s %s\n' '#' 'TARGET' 'RUNNER' 'STATE'
-  tmux list-windows -t "$SESSION" \
-    -F '#{window_index}|#{window_id}|#{window_name}|#{@cao_runner}|#{?window_active,active,}' |
-    while IFS='|' read -r index win_id name runner _active; do
-      [[ -n "$win_id" ]] || continue
-      if [[ -n "$manager" && "$win_id" == "$manager" ]]; then
-        continue
-      fi
-      printf '%-4s %-28s %-7s %s\n' "$index" "$SESSION:$name" "${runner:-?}" "$(agent_state "$win_id")"
-    done
+  if tmux_has_session; then
+    tmux list-windows -t "$SESSION" \
+      -F '#{window_index}|#{window_id}|#{window_name}|#{@cao_runner}|#{?window_active,active,}' |
+      while IFS='|' read -r index win_id name runner _active; do
+        [[ -n "$win_id" ]] || continue
+        if [[ -n "$manager" && "$win_id" == "$manager" ]]; then
+          continue
+        fi
+        printf '%-4s %-28s %-7s %s\n' "$index" "$SESSION:$name" "${runner:-?}" "$(agent_state "$win_id")"
+      done
+  fi
 
   registry_read |
     while IFS=$'\t' read -r win_target runner name _original_target; do
@@ -727,19 +806,21 @@ cmd_capture() {
     esac
   done
 
-  ensure_session
+  need_tmux
   if [[ -z "$target" ]]; then
-    local manager
+    local manager=""
     manager="$(manager_window_id || true)"
-    tmux list-windows -t "$SESSION" -F '#{window_id}|#{window_name}' |
-      while IFS='|' read -r win_id window; do
-        [[ -n "$win_id" ]] || continue
-        if [[ -n "$manager" && "$win_id" == "$manager" ]]; then
-          continue
-        fi
-        printf '\n===== %s:%s =====\n' "$SESSION" "$window"
-        tmux capture-pane -t "$SESSION:$window" -p -S "-$lines"
-      done
+    if tmux_has_session; then
+      tmux list-windows -t "$SESSION" -F '#{window_id}|#{window_name}' |
+        while IFS='|' read -r win_id window; do
+          [[ -n "$win_id" ]] || continue
+          if [[ -n "$manager" && "$win_id" == "$manager" ]]; then
+            continue
+          fi
+          printf '\n===== %s:%s =====\n' "$SESSION" "$window"
+          tmux capture-pane -t "$SESSION:$window" -p -S "-$lines"
+        done
+    fi
     registry_read |
       while IFS=$'\t' read -r win_target _runner name _original_target; do
         [[ -n "$win_target" ]] || continue
@@ -794,7 +875,7 @@ cmd_send() {
 
   [[ -n "$target" ]] || die "target is required"
   [[ -n "$text" ]] || die "text is required"
-  ensure_session
+  need_tmux
 
   local full_target win_target runner submit_key
   full_target="$(target_for "$target")"

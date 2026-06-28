@@ -1,0 +1,4 @@
+interface:
+  display_name: "CAO Supervisor Operator"
+  short_description: "Operate CAO before escalating"
+  default_prompt: "Use $cao-supervisor-operator to triage Worker questions, do feasible CAO-side work, and escalate only when user judgment is required."

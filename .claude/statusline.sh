@@ -19,8 +19,6 @@ detect_session() {
   fi
   if tmux has-session -t CAO 2>/dev/null; then
     printf 'CAO\n'
-  elif tmux has-session -t cao 2>/dev/null; then
-    printf 'cao\n'
   else
     printf 'CAO\n'
   fi
