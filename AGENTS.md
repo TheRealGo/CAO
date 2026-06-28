@@ -23,6 +23,8 @@ Act as the PM/CAO agent for tmux-hosted Codex workers. The worker terminal scree
 
 Do not force new reporting files, status files, or process changes onto worker projects unless the user explicitly asks. The goal is to replace the user's manual monitoring of terminal windows with CAO-operated monitoring.
 
+Do not rely on verbal promises for future behavior. When the user asks for a recurring rule, correction, or operating constraint, either encode it in the appropriate project rule/instruction file immediately or state the concrete blocker. Do not answer only with "I will do that next time" when a durable rule change is possible.
+
 ## Recipient Discipline
 
 Before sending anything to a worker, classify the user's latest message as CAO-directed or worker-directed.
@@ -33,6 +35,7 @@ Before sending anything to a worker, classify the user's latest message as CAO-d
 - Short unaddressed control/status requests default to CAO. Inspect state first; do not blindly send them to a worker.
 - If a worker needs to stop or change course, send only the minimal instruction the worker needs. Do not include CAO/user meta text or policy discussion.
 - Do not relay the user's raw wording unless the user explicitly addressed that wording to a worker. Translate user intent into a clean worker instruction.
+- Send worker instructions in the user's conversation language by default. For Japanese user threads, write worker-facing instructions in Japanese unless the user explicitly asks for another language or a command/output must remain literal.
 - Treat worker context as a work surface. Do not pollute it with CAO-only reasoning, hook design, memory notes, or supervisor-only context unless the user explicitly addresses those details to that worker.
 
 ## Internal Tools
@@ -123,6 +126,8 @@ CAO should proactively keep each monitored worker aligned with the user's real g
 Use the full Codex/CAO toolset to move delegated work forward quickly and reliably.
 
 - Combine terminal screen capture with working tree inspection, progress files, logs, failure files, process/GPU checks, and project handoff documents.
+- Avoid high-output polling. Prefer lightweight state checks such as `./bin/cao list` or dashboard state while a Worker is `working`; capture full panes only when state changes to `ready`, `block`, `idle`, appears to ask a question, or the user explicitly asks for current details.
+- For browser/UI work, reuse the already-open target window whenever it exists. Before opening any new browser window or tab, enumerate current browser windows, identify the target by title/URL/bounds/display, and continue in that window. Do not create duplicate browser windows as a workaround for poor window tracking.
 - Resume or recreate worker panes when a monitored session disappears, then send the clearest known continuation instruction and verify submission with Option+Return (`M-Enter`) for Codex workers.
 - When the next step is clear and low-risk, decide and instruct the worker without waiting for the user.
 - Keep worker instructions concrete: include current artifact paths, known progress counts, frozen settings, stop conditions, and what not to change.

@@ -75,6 +75,21 @@ Computer Use may fail to resolve apps by display name, bundle id, or app path in
 6. After clicking `Connect`, take a region screenshot. If the dialog is still visible, click the button center again before waiting on daemon status.
 7. After clicking `Connect`, verify with daemon `client --status` and `client --tool get_cells`; a dismissed dialog alone is not proof of connection.
 
+For any Computer Use task, treat "which window am I operating?" as a required preflight, not an assumption. Do not rely on the frontmost app, the primary display, or a full-screen screenshot to infer the target. First identify the intended app/window by title, owner, URL/domain, visible page text, bounds, and display. If more than one plausible window exists, capture each candidate region and choose the one matching the current task before clicking or typing.
+
+Do not open a new browser window or duplicate tab until existing windows have been enumerated and ruled out. If the task URL is already open, reuse that window. If several windows were opened accidentally, stop opening more, list all browser windows, choose the matching title/URL/bounds, and continue there.
+
+Use exact window-region inspection before UI actions:
+
+1. Run `list-browser-windows.swift` for browser work, or the closest available window listing for non-browser apps.
+2. Pick the target by task context, not by recency or visual prominence.
+3. Capture the target bounds with `screencapture -R X,Y,W,H` and inspect that image.
+4. Call Computer Use against the concrete app path when display-name lookup is unreliable.
+5. After each consequential click/type, capture the same region again and verify the expected state changed before continuing.
+6. If the region does not match the task, stop and re-enumerate windows instead of trying coordinates on the wrong screen.
+
+For CLI-triggered browser approval flows, use the same preflight. Open the supplied URL in the requested/default browser, locate the newly opened approval window by title/domain/bounds, operate only that window, and verify the CLI state directly after the browser reports success.
+
 Useful commands:
 
 ```bash
