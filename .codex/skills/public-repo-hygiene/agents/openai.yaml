@@ -1,0 +1,4 @@
+interface:
+  display_name: "Public Repo Hygiene"
+  short_description: "Keep private context out of public repos."
+  default_prompt: "Use this skill before editing, adding, or committing files in a public or potentially public git repository."

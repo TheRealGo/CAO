@@ -98,6 +98,28 @@ When supervising agents:
 6. Ask the user only for high-impact or ambiguous decisions.
 7. Continue until the requested work is complete or genuinely blocked.
 
+## Worker State Inference
+
+Do not treat the dashboard or `./bin/cao list` state as authoritative when the user is asking for real progress or when a long-running Worker may be stalled. The inferred `working` state can be wrong.
+
+- Use `./bin/cao list` only as the first lightweight signal.
+- For important checks, confirm with the Worker screen tail, current prompt/input area, running background jobs, fresh log timestamps, and relevant output files.
+- If a Codex pane shows `Working` but the visible transcript is old, the prompt is idle, or only stale background terminal text remains, treat it as possibly stalled and inspect before reporting.
+- If a pane shows `Ready` while an actual background job, external runtime, long-running process, or log is active, treat the job state as the source of truth and keep monitoring the real process.
+- For scheduled/low-frequency monitoring, prefer one concise state check plus fresh evidence over frequent polling.
+
+## Low-Frequency Worker Monitoring
+
+When the user asks CAO to keep an eye on a long-running Worker, maintain low-frequency supervision instead of waiting for the user to ask for status.
+
+- Written instructions are not a timer. Start or verify a running tmux watcher in the CAO session so scheduled checks actually execute.
+- Check the Worker roughly every 10 minutes while the task remains active, or sooner when the dashboard shows `ready`, `block`, `idle`, or an unexpectedly stale `working` state.
+- On each check, gather fresh evidence from the Worker screen and the real backing job state such as runtime status, service health, logs, output files, or resource usage.
+- When the current state and a saved direction report align, CAO should continue the next clear phase without waiting for another user confirmation. Escalate only for direction changes, credentials, permissions, destructive actions, or choices that conflict with the report.
+- If the Worker is blocked by a CAO-owned action such as a local permission prompt, disconnected external runtime, stale local service, missing `/compact`, or an obvious continuation choice, resolve it directly and then send only the concrete operational instruction needed.
+- Do not send "still waiting" or other passive filler to Workers. If no action is needed, leave the Worker context alone.
+- If CAO cannot schedule a true background wake-up in the current runtime, state that limitation explicitly and perform the check immediately when the conversation resumes.
+
 ## Worker Question Handling
 
 Treat Worker questions, requests for help, and partial-result uncertainty as addressed to CAO first, not automatically to the user.
