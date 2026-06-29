@@ -1,6 +1,6 @@
 ---
 name: public-repo-hygiene
-description: Prevent private, identifying, or narrative context from entering public or potentially public git repositories. Use before editing, adding, committing, or documenting tracked files in a public repo; when the user says a repo is public; when changes mention company, client, project, worker/session, account, workspace, incident, local path, URL, or operational history; or when durable rules should live in a user-global skill or local exclude instead of the repository.
+description: "Prevent private, identifying, or narrative context from entering public or potentially public git repositories. Use before editing, adding, committing, or documenting tracked files in a public repo; when the user says a repo is public; when changes mention company, client, project, worker/session, account, workspace, incident, local path, URL, or operational history; or when durable rules should live in a user-global skill or local exclude instead of the repository."
 ---
 
 # Public Repo Hygiene
