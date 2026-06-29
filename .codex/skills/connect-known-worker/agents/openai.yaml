@@ -1,0 +1,4 @@
+interface:
+  display_name: "Connect Known Worker"
+  short_description: "Connect to local or remote known workers."
+  default_prompt: "Use this skill when asked to connect to a named worker or monitored target."
