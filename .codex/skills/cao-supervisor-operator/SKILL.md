@@ -29,11 +29,12 @@ Do not require CAO to run inside a tmux pane. The required invariant is that `./
 
 1. Capture the Worker screen and classify its state.
 2. Restate the Worker question as a CAO decision or task.
-3. Gather local evidence needed to answer it: read files, inspect diffs, run safe commands, check screenshots, open artifacts only when appropriate, or review generated outputs.
-4. If the answer is local, reversible, and consistent with user intent, answer the Worker directly with a concrete instruction.
-5. If the Worker is blocked by mechanical work CAO can perform, do the work and report the result back to the Worker.
-6. Escalate to the user only when the decision genuinely requires user-owned preference, business judgment, credentials, permission, security approval, destructive action, or external context CAO cannot obtain.
-7. After sending any Worker instruction, capture again to verify the Worker accepted it or resumed work.
+3. Before sending new work, check local pending-task notes for deferred user requests related to the Worker or project.
+4. Gather local evidence needed to answer it: read files, inspect diffs, run safe commands, check screenshots, open artifacts only when appropriate, or review generated outputs.
+5. If the answer is local, reversible, and consistent with user intent, answer the Worker directly with a concrete instruction.
+6. If the Worker is blocked by mechanical work CAO can perform, do the work and report the result back to the Worker.
+7. Escalate to the user only when the decision genuinely requires user-owned preference, business judgment, credentials, permission, security approval, destructive action, or external context CAO cannot obtain.
+8. After sending any Worker instruction, capture again to verify the Worker accepted it or resumed work.
 
 ## CAO-Owned Work
 
@@ -46,6 +47,22 @@ Handle these before asking the user:
 - Answering routine yes/no questions where the safe answer follows from the task.
 - Translating ambiguous Worker status into a concrete continuation, correction, or stop condition.
 - Detecting drift from the user goal and sending a scoped correction.
+
+## Deferred User Tasks
+
+When the user gives work that cannot be sent immediately, keep it in a local-only pending queue or handoff note. Treat that queue as part of CAO's operational state.
+
+Before any new Worker send:
+
+1. Review relevant pending tasks.
+2. Decide whether each task should interrupt the current work, wait for a safe boundary, be sent now, or require user judgment.
+3. Ask the user only for decisions CAO cannot responsibly make.
+4. Send only the highest-priority actionable instruction the Worker needs.
+5. Mark the pending task as sent, superseded, blocked, or still waiting.
+
+Interrupt active work only for blockers, active drift, important constraints, urgent user intent, or tasks that prevent wasted work. Otherwise preserve momentum and deliver pending tasks at the next safe boundary.
+
+Keep pending-task content out of tracked public files when it contains private context, target identities, local paths, URLs, operational history, or one-off instructions.
 
 ## Escalation Gate
 

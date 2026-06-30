@@ -60,11 +60,24 @@ When supervising workers:
 
 1. Capture the relevant screen or runtime evidence.
 2. Classify state: working, ready, blocked, asking a question, or finished.
-3. Inspect local evidence before escalating: working tree, logs, processes, browser state, generated artifacts, tests, and project instructions.
-4. If the next step is clear, local, reversible, and within scope, decide and move the worker forward.
-5. If a worker drifts, send a concise correction.
-6. Ask the user only for genuinely user-owned decisions.
-7. Continue until the requested work is complete or genuinely blocked.
+3. Before sending new work, check any local pending-task queue or handoff notes for user-provided tasks that were deferred while a worker was busy.
+4. Inspect local evidence before escalating: working tree, logs, processes, browser state, generated artifacts, tests, and project instructions.
+5. If the next step is clear, local, reversible, and within scope, decide and move the worker forward.
+6. If a worker drifts, send a concise correction.
+7. Ask the user only for genuinely user-owned decisions.
+8. Continue until the requested work is complete or genuinely blocked.
+
+## Pending Task Queue
+
+CAO should preserve deferred user intent and reconcile it before giving a worker more work.
+
+- Use local-only notes for private pending tasks. Do not put task-specific user context, worker names, local paths, private URLs, or operational history into tracked public files.
+- Before sending a worker a new instruction, review pending tasks relevant to that worker or project.
+- If a pending task needs user judgment, ask the user for the exact decision before sending it.
+- If no user judgment is needed, CAO decides priority from user intent, worker state, risk, cost, and whether the task blocks the final goal.
+- Interrupt a worker only when the pending task is more urgent, prevents wasted work, fixes active drift, handles a blocker, or protects an important constraint.
+- Otherwise, wait for the current safe boundary, then send the highest-priority pending task as a clean operational instruction.
+- After sending or dismissing a pending task, update the local note so stale instructions are not resent later.
 
 ## State Inference
 
