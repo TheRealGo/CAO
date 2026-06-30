@@ -31,9 +31,24 @@ ssh_alias = "RemoteHostAlias"
 remote_dir = "~/work/repo"
 remote_tmux_session = "remote-example"
 command = "claude"
+
+[workers.example.policy]
+scope = "current work only"
+external_writes = "Do not write to shared external systems without explicit approval."
+allowed_without_approval = "Local implementation, local validation, and CAO-facing reports."
+do_not_generalize = true
 ```
 
 Never put credentials, OAuth codes, tokens, cookies, private keys, or one-time approval codes in this file.
+
+## Target Policy
+
+Entries may include an optional `policy` table for target-specific operating constraints. Treat these constraints as local instructions for that target only.
+
+- Read and apply `policy` before sending work instructions, resuming, or reconnecting the target.
+- Translate policy values into concise Worker-facing constraints; do not forward TOML or supervisor-only wording verbatim.
+- If `do_not_generalize = true`, do not apply that policy to other Workers or future unrelated work.
+- Keep target-specific policies in `.cao/known-workers.local.toml`, not tracked files.
 
 ## Resolve
 
