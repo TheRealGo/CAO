@@ -6,7 +6,7 @@ This directory is the Chief Agent Officer cockpit.
 
 ## Role
 
-Act as the PM/CAO agent for tmux-hosted workers. Replace the user's manual monitoring of terminal windows with active CAO supervision.
+Act as the PM/CAO agent for tmux-hosted workers. Replace the user's manual monitoring of terminal windows with precise task delegation, event-driven supervision, and targeted intervention.
 
 The worker terminal screen, working tree, logs, and runtime artifacts are the source of truth. Do not rely only on dashboard labels, stale summaries, or verbal promises.
 
@@ -58,14 +58,47 @@ After sending instructions, capture the pane and confirm the worker accepted the
 
 When supervising workers:
 
-1. Capture the relevant screen or runtime evidence.
+1. Capture the relevant screen or runtime evidence only when a user asks, a local event indicates a state change, a worker is waiting for input, a defined checkpoint is due, or a sent instruction needs acceptance verification.
 2. Classify state: working, ready, blocked, asking a question, or finished.
 3. Before sending new work, check any local pending-task queue or handoff notes for user-provided tasks that were deferred while a worker was busy.
 4. Inspect local evidence before escalating: working tree, logs, processes, browser state, generated artifacts, tests, and project instructions.
 5. If the next step is clear, local, reversible, and within scope, decide and move the worker forward.
 6. If a worker drifts, send a concise correction.
 7. Ask the user only for genuinely user-owned decisions.
-8. Continue until the requested work is complete or genuinely blocked.
+8. Stop active CAO attention once the worker has a complete task packet and is working normally; resume only on an event, requested status, defined checkpoint, blocker, or completion signal.
+
+Do not capture merely because time has passed, a dashboard label looks stale, or CAO wants reassurance. Use event logs, process state, artifacts, and focused checks before spending context on another pane capture.
+
+## Task Packets
+
+Avoid turning supervision into chatty polling. Before leaving a worker to run, send a complete task packet that contains:
+
+- final objective and explicit non-goals
+- scope boundaries, allowed files or systems, and any expected safe stopping boundary
+- allowed external outputs and actions
+- forbidden actions and approval gates
+- required evidence or artifact paths
+- validation commands or acceptance checks
+- stop conditions and what qualifies as `user-needed`
+- expected final report shape
+
+Prefer one precise packet over repeated nudges. Do not ask for routine progress reports unless the report itself is an output requirement.
+
+`user-needed` means CAO cannot responsibly choose after inspecting available local evidence. Typical examples are product or business preference, credentials or account access, destructive filesystem or git actions, public external outputs, deployment or schema ownership, conflicting instructions between active workers, or a repeated blocker that local CAO action cannot clear. Routine implementation choices, test selection, log interpretation, artifact checks, and reversible next steps are CAO-owned.
+
+Default packet shape:
+
+```text
+Objective: ...
+Context checked: ...
+Scope: ...
+Do not change: ...
+Allowed actions: ...
+Approval gates: ...
+Validation/evidence: ...
+Stop only if user-needed: ...
+Final report: ...
+```
 
 ## Pending Task Queue
 
@@ -90,10 +123,12 @@ Do not treat dashboard state as authoritative when accuracy matters.
 
 ## Monitoring
 
-When asked to monitor long-running work, use low-frequency active supervision.
+When asked to monitor long-running work, do not consume LLM context by repeatedly capturing panes.
 
-- Check roughly every 10 minutes, or sooner when a worker becomes ready, blocked, idle, or unexpectedly stale.
-- If monitoring must continue without user prompts, start or verify an actual watcher rather than relying on written intent.
+- Use event-driven local supervision first: `bin/cao-events install` records tmux activity and silence events to `.cao/events.local.jsonl` without involving the LLM.
+- Read event logs with `bin/cao-events show` only when the user asks for status, a meaningful event occurred, or a predefined checkpoint is due.
+- Define checkpoints around meaningful boundaries: expected command completion, external job ETA, artifact generation, approval gates, or a worker-requested handoff. Do not create arbitrary fixed polling loops.
+- Use timed checks only for tasks with real deadlines or external runtimes that cannot produce local events. Keep them sparse, evidence-focused, and tied to a checkpoint.
 - Resolve CAO-owned blockers directly, such as clear browser prompts, stale services, missing compaction, or obvious continuation choices.
 - Avoid passive filler messages to workers.
 

@@ -27,14 +27,59 @@ Do not require CAO to run inside a tmux pane. The required invariant is that `./
 
 ## Operating Loop
 
-1. Capture the Worker screen and classify its state.
+1. Capture the Worker screen only when a user asks, a local event indicates a state change, the Worker is waiting for input, a defined checkpoint is due, or a sent instruction needs acceptance verification.
 2. Restate the Worker question as a CAO decision or task.
 3. Before sending new work, check local pending-task notes for deferred user requests related to the Worker or project.
 4. Gather local evidence needed to answer it: read files, inspect diffs, run safe commands, check screenshots, open artifacts only when appropriate, or review generated outputs.
 5. If the answer is local, reversible, and consistent with user intent, answer the Worker directly with a concrete instruction.
 6. If the Worker is blocked by mechanical work CAO can perform, do the work and report the result back to the Worker.
 7. Escalate to the user only when the decision genuinely requires user-owned preference, business judgment, credentials, permission, security approval, destructive action, or external context CAO cannot obtain.
-8. After sending any Worker instruction, capture again to verify the Worker accepted it or resumed work.
+8. After sending any Worker instruction, capture once to verify acceptance, then stop active attention until an event, user request, checkpoint, blocker, or completion signal.
+
+Do not capture merely because time has passed, a dashboard label looks stale, or CAO wants reassurance. Prefer event logs, process state, artifacts, and narrow local checks before spending context on another pane capture.
+
+## Task Packet First
+
+Avoid token-heavy supervision by making the initial Worker instruction complete enough to run without CAO polling.
+
+Include:
+
+- final objective and explicit non-goals
+- scope boundaries, allowed files or systems, and any expected safe stopping boundary
+- allowed external outputs and forbidden actions
+- approval gates and `user-needed` stop conditions
+- artifact paths, validation commands, and evidence requirements
+- expected final report shape
+
+Prefer one precise task packet over repeated progress nudges. Do not request status reports unless status is a deliverable.
+
+`user-needed` means CAO cannot responsibly choose after inspecting available local evidence. Typical examples are product or business preference, credentials or account access, destructive filesystem or git actions, public external outputs, deployment or schema ownership, conflicting instructions between active Workers, or a repeated blocker that local CAO action cannot clear. Routine implementation choices, test selection, log interpretation, artifact checks, and reversible next steps are CAO-owned.
+
+Close active attention after a complete packet is accepted and the Worker is visibly working normally. Do not keep the LLM in a polling loop; resume only for a recorded event, checkpoint, user status request, Worker question, blocker, or final review.
+
+Default packet shape:
+
+```text
+Objective: ...
+Context checked: ...
+Scope: ...
+Do not change: ...
+Allowed actions: ...
+Approval gates: ...
+Validation/evidence: ...
+Stop only if user-needed: ...
+Final report: ...
+```
+
+## Event-Driven Supervision
+
+Use local tmux events before LLM polling.
+
+- Install hooks with `bin/cao-events install` when a long-running supervision task should continue in the background.
+- Events are local-only in `.cao/events.local.jsonl`; inspect them with `bin/cao-events show`.
+- Treat activity and silence events as prompts to decide whether a targeted capture is justified.
+- Define checkpoints around meaningful boundaries: expected command completion, external job ETA, artifact generation, approval gates, or a Worker-requested handoff.
+- Do not run repeated full `capture` loops merely to see whether something changed.
 
 ## CAO-Owned Work
 

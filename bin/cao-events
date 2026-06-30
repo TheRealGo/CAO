@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT="$ROOT/bin/cao-events"
+SESSION="${CAO_SESSION:-CAO}"
+STATE_DIR="${CAO_STATE_DIR:-$ROOT/.cao}"
+EVENT_LOG="${CAO_EVENT_LOG:-$STATE_DIR/events.local.jsonl}"
+SILENCE_SECONDS="${CAO_EVENT_SILENCE_SECONDS:-900}"
+umask 077
+
+usage() {
+  cat <<'EOF'
+Usage:
+  cao-events install [--session NAME] [--silence SECONDS]
+  cao-events remove [--session NAME]
+  cao-events emit EVENT SESSION WINDOW_ID PANE_ID WINDOW_NAME
+  cao-events show [--tail N]
+  cao-events clear
+
+Installs tmux activity/silence hooks that write local-only worker events without
+asking the LLM to poll terminal screens. Events are written to
+.cao/events.local.jsonl by default and may contain local worker/window names, so
+the log must remain local.
+EOF
+}
+
+need_tmux() {
+  command -v tmux >/dev/null 2>&1 || {
+    printf 'tmux is required\n' >&2
+    exit 1
+  }
+}
+
+ensure_state_dir() {
+  mkdir -p "$STATE_DIR"
+  chmod 700 "$STATE_DIR" 2>/dev/null || true
+}
+
+is_positive_int() {
+  [[ "${1:-}" =~ ^[1-9][0-9]*$ ]]
+}
+
+hook_command() {
+  local event="$1"
+  printf 'CAO_STATE_DIR=%q CAO_EVENT_LOG=%q %q emit %q #{q:session_name} #{q:window_id} #{q:pane_id} #{q:window_name}' \
+    "$STATE_DIR" "$EVENT_LOG" "$SCRIPT" "$event"
+}
+
+enable_window_monitoring() {
+  local window_id
+  while IFS= read -r window_id; do
+    [[ -n "$window_id" ]] || continue
+    tmux setw -t "$window_id" monitor-activity on >/dev/null
+    tmux setw -t "$window_id" monitor-silence "$SILENCE_SECONDS" >/dev/null
+  done < <(tmux list-windows -t "$SESSION" -F '#{window_id}')
+}
+
+cmd_install() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --session)
+        [[ $# -ge 2 ]] || { printf '%s\n' '--session requires a value' >&2; exit 1; }
+        SESSION="$2"
+        shift 2
+        ;;
+      --silence)
+        [[ $# -ge 2 ]] || { printf '%s\n' '--silence requires a value' >&2; exit 1; }
+        is_positive_int "$2" || { printf '%s\n' '--silence must be a positive integer' >&2; exit 1; }
+        SILENCE_SECONDS="$2"
+        shift 2
+        ;;
+      -*)
+        printf 'unknown option: %s\n' "$1" >&2
+        exit 1
+        ;;
+      *)
+        printf 'unexpected argument: %s\n' "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  need_tmux
+  tmux has-session -t "$SESSION" 2>/dev/null || {
+    printf 'tmux session not found: %s\n' "$SESSION" >&2
+    exit 1
+  }
+
+  ensure_state_dir
+  enable_window_monitoring
+  tmux set-hook -t "$SESSION" alert-activity "run-shell '$(hook_command activity)'" >/dev/null
+  tmux set-hook -t "$SESSION" alert-silence "run-shell '$(hook_command silence)'" >/dev/null
+  printf 'Installed CAO event hooks for session %s; log=%s; silence=%ss\n' "$SESSION" "$EVENT_LOG" "$SILENCE_SECONDS"
+}
+
+cmd_remove() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --session)
+        [[ $# -ge 2 ]] || { printf '%s\n' '--session requires a value' >&2; exit 1; }
+        SESSION="$2"
+        shift 2
+        ;;
+      -*)
+        printf 'unknown option: %s\n' "$1" >&2
+        exit 1
+        ;;
+      *)
+        printf 'unexpected argument: %s\n' "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  need_tmux
+  tmux set-hook -u -t "$SESSION" alert-activity >/dev/null 2>&1 || true
+  tmux set-hook -u -t "$SESSION" alert-silence >/dev/null 2>&1 || true
+  printf 'Removed CAO event hooks\n'
+}
+
+cmd_emit() {
+  [[ $# -eq 5 ]] || { usage >&2; exit 1; }
+  local event="$1" session="$2" window_id="$3" pane_id="$4" window_name="$5"
+  ensure_state_dir
+  python3 - "$EVENT_LOG" "$event" "$session" "$window_id" "$pane_id" "$window_name" <<'PY'
+import json
+import os
+import sys
+import time
+
+path, event, session, window_id, pane_id, window_name = sys.argv[1:]
+row = {
+    "ts": int(time.time()),
+    "event": event,
+    "session": session,
+    "window_id": window_id,
+    "pane_id": pane_id,
+    "window_name": window_name,
+}
+fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+os.chmod(path, 0o600)
+with os.fdopen(fd, "a", encoding="utf-8") as fh:
+    fh.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+PY
+}
+
+cmd_show() {
+  local tail_lines="40"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --tail)
+        [[ $# -ge 2 ]] || { printf '%s\n' '--tail requires a value' >&2; exit 1; }
+        is_positive_int "$2" || { printf '%s\n' '--tail must be a positive integer' >&2; exit 1; }
+        tail_lines="$2"
+        shift 2
+        ;;
+      -*)
+        printf 'unknown option: %s\n' "$1" >&2
+        exit 1
+        ;;
+      *)
+        printf 'unexpected argument: %s\n' "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
+  [[ -f "$EVENT_LOG" ]] || return 0
+  tail -n "$tail_lines" "$EVENT_LOG"
+}
+
+cmd_clear() {
+  ensure_state_dir
+  : > "$EVENT_LOG"
+  chmod 600 "$EVENT_LOG" 2>/dev/null || true
+}
+
+cmd="${1:-}"
+if [[ -z "$cmd" ]]; then
+  usage
+  exit 0
+fi
+shift
+
+case "$cmd" in
+  install) cmd_install "$@" ;;
+  remove) cmd_remove "$@" ;;
+  emit) cmd_emit "$@" ;;
+  show) cmd_show "$@" ;;
+  clear) cmd_clear "$@" ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 1 ;;
+esac
